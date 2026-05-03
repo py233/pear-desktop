@@ -55,7 +55,7 @@ export const defaultConfig: DefaultConfig = {
   'options': {
     tray: false,
     appVisible: true,
-    autoUpdates: true,
+    autoUpdates: false,
     alwaysOnTop: false,
     hideMenu: false,
     hideMenuWarned: false,

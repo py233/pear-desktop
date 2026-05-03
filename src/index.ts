@@ -71,6 +71,7 @@ unhandled({
 // Prevent window being garbage collected
 let mainWindow: Electron.BrowserWindow | null;
 electronUpdater.autoUpdater.autoDownload = false;
+const hasPublicUpdateFeed = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -802,7 +803,7 @@ app.whenReady().then(async () => {
     openAtLogin: config.get('options.startAtLogin'),
   });
 
-  if (!is.dev() && config.get('options.autoUpdates')) {
+  if (!is.dev() && config.get('options.autoUpdates') && hasPublicUpdateFeed) {
     const updateTimeout = setTimeout(() => {
       electronUpdater.autoUpdater.checkForUpdatesAndNotify();
       clearTimeout(updateTimeout);

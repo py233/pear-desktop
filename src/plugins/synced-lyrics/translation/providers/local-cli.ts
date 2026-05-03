@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { delimiter, join } from 'node:path';
 
 import { app } from 'electron';
 
@@ -17,13 +19,40 @@ const ansiPattern =
   /[\u001b\u009b][[\]()#;?]*(?:[\dA-PR-TZcf-nq-uy=><~]*(?:;[\dA-PR-TZcf-nq-uy=><~]*)*)?[\dA-PR-TZcf-nq-uy=><~]/g;
 
 const augmentPath = () => {
+  const fnmVersionsDir = join(homedir(), '.local', 'share', 'fnm', 'node-versions');
+  const fnmNodeBins = existsSync(fnmVersionsDir)
+    ? readdirSync(fnmVersionsDir).map((version) =>
+        join(fnmVersionsDir, version, 'installation', 'bin'),
+      )
+    : [];
   const extras = [
     '/opt/homebrew/bin',
     '/usr/local/bin',
     `${homedir()}/.local/bin`,
     `${homedir()}/.npm-global/bin`,
+    `${homedir()}/.volta/bin`,
+    `${homedir()}/.bun/bin`,
+    ...fnmNodeBins,
   ];
-  return [process.env.PATH, ...extras].filter(Boolean).join(':');
+  return [process.env.PATH, ...extras].filter(Boolean).join(delimiter);
+};
+
+const resolveExecutable = (command: string, envPath: string) => {
+  if (command.includes('/') || command.includes('\\')) return command;
+
+  const executableNames =
+    process.platform === 'win32'
+      ? [command, `${command}.cmd`, `${command}.exe`, `${command}.bat`]
+      : [command];
+
+  for (const pathEntry of envPath.split(delimiter)) {
+    for (const executableName of executableNames) {
+      const candidate = join(pathEntry, executableName);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+
+  return command;
 };
 
 const stripAnsi = (text: string) => text.replace(ansiPattern, '').trim();
@@ -103,11 +132,13 @@ const runCli = async (
   timeoutSeconds: number,
 ): Promise<string> =>
   new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const envPath = augmentPath();
+    const executable = resolveExecutable(command, envPath);
+    const child = spawn(executable, args, {
       cwd: app.getPath('userData'),
       env: {
         ...process.env,
-        PATH: augmentPath(),
+        PATH: envPath,
         NO_COLOR: '1',
         FORCE_COLOR: '0',
       },
@@ -133,7 +164,11 @@ const runCli = async (
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      reject(err);
+      reject(
+        new Error(
+          `Failed to start Local CLI command "${command}" resolved as "${executable}": ${err.message}`,
+        ),
+      );
     });
     child.on('close', (code) => {
       if (settled) return;

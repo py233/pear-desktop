@@ -154,7 +154,7 @@ if (asarPaths.length === 0) {
 
 for (const asarPath of asarPaths) {
   const files = new Set(
-    listPackage(asarPath).map((file) => file.replace(/^\/+/, '').replaceAll('\\', '/')),
+    listPackage(asarPath).map((file) => file.replaceAll('\\', '/').replace(/^\/+/, '')),
   );
   const missing = requiredFiles.filter((file) => !files.has(file));
 

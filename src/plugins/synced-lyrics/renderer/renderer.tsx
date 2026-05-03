@@ -30,19 +30,19 @@ export const [config, setConfig] =
 
 const lyricsFontSizes = {
   small: {
-    fancy: '1.55rem',
-    padding: '0.8rem',
-    standard: 'clamp(0.82rem, 0.62vmax, 1.55rem)',
+    fancy: '28px',
+    padding: '12px',
+    standard: '28px',
   },
   medium: {
-    fancy: '1.9rem',
-    padding: '1.05rem',
-    standard: 'clamp(0.95rem, 0.72vmax, 1.9rem)',
+    fancy: '36px',
+    padding: '14px',
+    standard: '36px',
   },
   large: {
-    fancy: '2.25rem',
-    padding: '1.3rem',
-    standard: 'clamp(1.05rem, 0.85vmax, 2.25rem)',
+    fancy: '48px',
+    padding: '18px',
+    standard: '48px',
   },
 } as const;
 
@@ -79,10 +79,7 @@ createEffect(() => {
       break;
     case 'scale':
       root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
-      root.style.setProperty(
-        '--lyrics-line-height',
-        'var(--ytmusic-body-line-height)',
-      );
+      root.style.setProperty('--lyrics-line-height', '1.18');
       root.style.setProperty('--lyrics-width', '83%');
       root.style.setProperty('--lyrics-padding', '0');
       root.style.setProperty('--lyrics-animations', 'none');
@@ -99,10 +96,7 @@ createEffect(() => {
       break;
     case 'offset':
       root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
-      root.style.setProperty(
-        '--lyrics-line-height',
-        'var(--ytmusic-body-line-height)',
-      );
+      root.style.setProperty('--lyrics-line-height', '1.18');
       root.style.setProperty('--lyrics-width', '100%');
       root.style.setProperty('--lyrics-padding', '0');
       root.style.setProperty('--lyrics-animations', 'none');
@@ -119,10 +113,7 @@ createEffect(() => {
       break;
     case 'focus':
       root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
-      root.style.setProperty(
-        '--lyrics-line-height',
-        'var(--ytmusic-body-line-height)',
-      );
+      root.style.setProperty('--lyrics-line-height', '1.18');
       root.style.setProperty('--lyrics-width', '100%');
       root.style.setProperty('--lyrics-padding', '0');
       root.style.setProperty('--lyrics-animations', 'none');
