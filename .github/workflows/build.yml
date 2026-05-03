@@ -105,7 +105,10 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pear-desktop-personal-macos-arm64
-          path: pack/**/*
+          path: |
+            pack/*.dmg
+            pack/*.dmg.blockmap
+            pack/latest-mac.yml
           if-no-files-found: error
 
   package-windows-x64:
@@ -139,7 +142,11 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pear-desktop-personal-windows-x64
-          path: pack/**/*
+          path: |
+            pack/*Setup*.exe
+            pack/*.nsis.7z
+            pack/latest.yml
+            pack/Pear Desktop Personal.exe
           if-no-files-found: error
 
   package-linux-appimage-x64:
@@ -181,7 +188,10 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pear-desktop-personal-linux-appimage-x64
-          path: pack/**/*
+          path: |
+            pack/*.AppImage
+            pack/*.AppImage.blockmap
+            pack/latest-linux.yml
           if-no-files-found: error
 
   publish-release:
