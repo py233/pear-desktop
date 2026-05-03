@@ -101,6 +101,9 @@ jobs:
       - name: Build macOS arm64 DMG
         run: pnpm dist:mac:arm64
 
+      - name: Verify macOS packaged runtime dependencies
+        run: node scripts/verify-packaged-runtime.mjs pack/mac-arm64
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v6
         with:
@@ -137,6 +140,9 @@ jobs:
 
       - name: Build Windows x64 installer
         run: pnpm dist:win:x64
+
+      - name: Verify Windows packaged runtime dependencies
+        run: node scripts/verify-packaged-runtime.mjs pack/win-unpacked
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v6
@@ -182,6 +188,9 @@ jobs:
           pnpm clean
           pnpm build
           pnpm electron-builder --linux AppImage:x64 -p never
+
+      - name: Verify Linux packaged runtime dependencies
+        run: node scripts/verify-packaged-runtime.mjs pack/linux-unpacked
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v6
