@@ -149,7 +149,7 @@ jobs:
           pnpm build
           Move-Item pnpm-lock.yaml pnpm-lock.yaml.packaging
           try {
-            pnpm electron-builder --win nsis-web:x64 -p never
+            pnpm electron-builder --win nsis:x64 -p never
           } finally {
             Move-Item pnpm-lock.yaml.packaging pnpm-lock.yaml
           }
@@ -162,9 +162,9 @@ jobs:
         with:
           name: pear-desktop-personal-windows-x64
           path: |
-            pack/nsis-web/*Setup*.exe
-            pack/nsis-web/*.nsis.7z
-            pack/nsis-web/latest.yml
+            pack/*Setup*.exe
+            pack/*.exe.blockmap
+            pack/latest.yml
           if-no-files-found: error
 
   package-linux-appimage-x64:
@@ -247,7 +247,6 @@ jobs:
               -name '*.dmg.blockmap' -o \
               -name '*.exe' -o \
               -name '*.exe.blockmap' -o \
-              -name '*.7z' -o \
               -name '*.AppImage' -o \
               -name '*.AppImage.blockmap' -o \
               -name 'latest-*.yml' -o \

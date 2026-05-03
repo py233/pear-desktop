@@ -31,7 +31,7 @@
     "dist:mac": "pnpm clean && pnpm build && pnpm electron-builder --mac dmg:x64 -p never",
     "dist:mac:arm64": "pnpm clean && pnpm build && pnpm electron-builder --mac dmg:arm64 -p never",
     "dist:win": "pnpm clean && pnpm build && pnpm electron-builder --win -p never",
-    "dist:win:x64": "pnpm clean && pnpm build && pnpm electron-builder --win nsis-web:x64 -p never",
+    "dist:win:x64": "pnpm clean && pnpm build && pnpm electron-builder --win nsis:x64 -p never",
     "lint": "pnpm eslint ./src",
     "changelog": "pnpm dlx auto-changelog",
     "release:linux": "pnpm clean && pnpm build && pnpm electron-builder --linux -p always -c.snap.publish=github",
