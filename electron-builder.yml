@@ -6,7 +6,7 @@ files:
   - dist
   - assets
   - license
-  - node_modules
+  - 'node_modules/**/*'
   - '!node_modules/**/*.map'
   - '!node_modules/**/*.ts'
 asarUnpack:
