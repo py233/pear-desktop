@@ -54,10 +54,13 @@ for (const asarPath of asarPaths) {
   const missing = requiredFiles.filter((file) => !files.has(file));
 
   if (missing.length > 0) {
+    const nodeModuleFiles = [...files].filter((file) => file.startsWith('node_modules/'));
+
     console.error(`Missing packaged runtime dependencies in ${asarPath}:`);
     for (const file of missing) {
       console.error(`- ${file}`);
     }
+    console.error(`app.asar contains ${nodeModuleFiles.length} node_modules entries.`);
     process.exit(1);
   }
 

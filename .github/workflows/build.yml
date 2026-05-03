@@ -139,7 +139,16 @@ jobs:
         run: pnpm install --frozen-lockfile --config.node-linker=hoisted
 
       - name: Build Windows x64 installer
-        run: pnpm dist:win:x64
+        shell: pwsh
+        run: |
+          pnpm clean
+          pnpm build
+          Move-Item pnpm-lock.yaml pnpm-lock.yaml.packaging
+          try {
+            pnpm electron-builder --win nsis-web:x64 -p never
+          } finally {
+            Move-Item pnpm-lock.yaml.packaging pnpm-lock.yaml
+          }
 
       - name: Verify Windows packaged runtime dependencies
         run: node scripts/verify-packaged-runtime.mjs pack/win-unpacked

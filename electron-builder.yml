@@ -2,6 +2,7 @@ appId: io.github.py233.pear-desktop-personal
 productName: Pear Desktop Personal
 files:
   - '!*'
+  - package.json
   - dist
   - assets
   - license
