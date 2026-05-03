@@ -20,13 +20,36 @@ import {
   PlainLyrics,
 } from './components';
 
-import { currentLyrics } from './store';
+import { currentLyrics, hasLyricText, splitPlainLyrics } from './store';
 
 import type { LineLyrics, SyncedLyricsPluginConfig } from '../types';
 
 export const [isVisible, setIsVisible] = createSignal<boolean>(false);
 export const [config, setConfig] =
   createSignal<SyncedLyricsPluginConfig | null>(null);
+
+const lyricsFontSizes = {
+  small: {
+    fancy: '1.55rem',
+    padding: '0.8rem',
+    standard: 'clamp(0.82rem, 0.62vmax, 1.55rem)',
+  },
+  medium: {
+    fancy: '1.9rem',
+    padding: '1.05rem',
+    standard: 'clamp(0.95rem, 0.72vmax, 1.9rem)',
+  },
+  large: {
+    fancy: '2.25rem',
+    padding: '1.3rem',
+    standard: 'clamp(1.05rem, 0.85vmax, 2.25rem)',
+  },
+} as const;
+
+const currentFontStyle = () => {
+  const size = config()?.lyricsFontSize ?? 'small';
+  return lyricsFontSizes[size];
+};
 
 createEffect(() => {
   if (!config()?.enabled) return;
@@ -35,10 +58,10 @@ createEffect(() => {
   // Set the line effect
   switch (config()?.lineEffect) {
     case 'fancy':
-      root.style.setProperty('--lyrics-font-size', '3rem');
+      root.style.setProperty('--lyrics-font-size', currentFontStyle().fancy);
       root.style.setProperty('--lyrics-line-height', '1.333');
       root.style.setProperty('--lyrics-width', '100%');
-      root.style.setProperty('--lyrics-padding', '2rem');
+      root.style.setProperty('--lyrics-padding', currentFontStyle().padding);
       root.style.setProperty(
         '--lyrics-animations',
         'lyrics-glow var(--lyrics-glow-duration) forwards, lyrics-wobble var(--lyrics-wobble-duration) forwards',
@@ -55,10 +78,7 @@ createEffect(() => {
       root.style.setProperty('--lyrics-active-offset', '0');
       break;
     case 'scale':
-      root.style.setProperty(
-        '--lyrics-font-size',
-        'clamp(1.4rem, 1.1vmax, 3rem)',
-      );
+      root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
       root.style.setProperty(
         '--lyrics-line-height',
         'var(--ytmusic-body-line-height)',
@@ -78,10 +98,7 @@ createEffect(() => {
       root.style.setProperty('--lyrics-active-offset', '0');
       break;
     case 'offset':
-      root.style.setProperty(
-        '--lyrics-font-size',
-        'clamp(1.4rem, 1.1vmax, 3rem)',
-      );
+      root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
       root.style.setProperty(
         '--lyrics-line-height',
         'var(--ytmusic-body-line-height)',
@@ -101,10 +118,7 @@ createEffect(() => {
       root.style.setProperty('--lyrics-active-offset', '5%');
       break;
     case 'focus':
-      root.style.setProperty(
-        '--lyrics-font-size',
-        'clamp(1.4rem, 1.1vmax, 3rem)',
-      );
+      root.style.setProperty('--lyrics-font-size', currentFontStyle().standard);
       root.style.setProperty(
         '--lyrics-line-height',
         'var(--ytmusic-body-line-height)',
@@ -209,22 +223,24 @@ export const LyricsRenderer = () => {
         return [{ kind: 'Error', error: error! }];
       }
 
-      if (data?.lines) {
+      if (data?.lines?.some((line) => line.text.trim())) {
         return data.lines.map((line) => ({
           kind: 'SyncedLine' as const,
           line,
         }));
       }
 
-      if (data?.lyrics) {
-        const lines = data.lyrics.split('\n').filter((line) => line.trim());
+      if (data?.lyrics?.trim()) {
+        const lines = splitPlainLyrics(data.lyrics);
         return lines.map((line) => ({
           kind: 'PlainLine' as const,
           line,
         }));
       }
 
-      return [{ kind: 'NotFoundKaomoji' }];
+      return hasLyricText(data)
+        ? [{ kind: 'LoadingKaomoji' }]
+        : [{ kind: 'NotFoundKaomoji' }];
     });
   });
 
@@ -308,7 +324,7 @@ export const LyricsRenderer = () => {
               );
             }
             case 'PlainLine': {
-              return <PlainLyrics {...props} />;
+              return <PlainLyrics {...props} index={idx() - 1} />;
             }
           }
         }}

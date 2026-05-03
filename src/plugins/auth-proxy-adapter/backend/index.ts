@@ -1,4 +1,4 @@
-import * as net from 'node:net';
+import * as net from 'net';
 
 import { SocksClient, type SocksClientOptions } from 'socks';
 import is from 'electron-is';

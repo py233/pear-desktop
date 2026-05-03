@@ -109,7 +109,7 @@ export const backend = createBackend<BackendType, APIServerConfig>({
       await next();
     };
 
-    this.app.use('/api/*', async (ctx, next) => {
+    this.app.use('/api/*', jwtGuard, async (ctx, next) => {
       const result = await JWTPayloadSchema.spa(await ctx.get('jwtPayload'));
       const config = await backendCtx.getConfig();
 

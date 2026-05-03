@@ -7,7 +7,6 @@ export const APPLICATION_NAME =
 
 export const loadI18n = async () =>
   await init({
-    showSupportNotice: false,
     resources: await languageResources(),
     lng: 'en',
     fallbackLng: 'en',

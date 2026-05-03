@@ -886,6 +886,24 @@
           },
           "tooltip": "选择当前歌词行应用的特效"
         },
+        "lyrics-font-size": {
+          "label": "歌词字号",
+          "submenu": {
+            "small": {
+              "label": "小",
+              "tooltip": "使用更紧凑的歌词字号"
+            },
+            "medium": {
+              "label": "中",
+              "tooltip": "使用较均衡的歌词字号"
+            },
+            "large": {
+              "label": "大",
+              "tooltip": "使用原先偏大的歌词字号"
+            }
+          },
+          "tooltip": "调整歌词整体显示字号"
+        },
         "precise-timing": {
           "label": "让滚动歌词完全同步",
           "tooltip": "以毫秒精度估算下句歌词的显示时间（可能对性能有小幅影响）"
@@ -909,6 +927,117 @@
         "show-time-codes": {
           "label": "显示时值",
           "tooltip": "在歌词旁显示时值"
+        },
+        "translation": {
+          "label": "歌词翻译",
+          "tooltip": "翻译歌词,并把译文按原歌词行对齐显示。",
+          "enabled": {
+            "label": "启用翻译",
+            "tooltip": "在每行原文下方显示译文,形成双语字幕。"
+          },
+          "provider": {
+            "label": "提供商",
+            "tooltip": "选择调用哪家服务来翻译。"
+          },
+          "target-language": {
+            "label": "目标语言",
+            "tooltip": "翻译成什么语言。",
+            "options": {
+              "auto": "跟随界面语言",
+              "zh-CN": "简体中文",
+              "zh-TW": "繁體中文",
+              "en": "English",
+              "ja": "日本語",
+              "ko": "한국어",
+              "fr": "Français",
+              "de": "Deutsch",
+              "es": "Español",
+              "pt-BR": "Português (Brasil)",
+              "pt-PT": "Português (Portugal)",
+              "it": "Italiano",
+              "nl": "Nederlands",
+              "ru": "Русский",
+              "uk": "Українська",
+              "pl": "Polski",
+              "tr": "Türkçe",
+              "ar": "العربية",
+              "he": "עברית",
+              "fa": "فارسی",
+              "hi": "हिन्दी",
+              "bn": "বাংলা",
+              "ur": "اردو",
+              "ta": "தமிழ்",
+              "te": "తెలుగు",
+              "mr": "मराठी",
+              "id": "Bahasa Indonesia",
+              "ms": "Bahasa Melayu",
+              "vi": "Tiếng Việt",
+              "th": "ไทย",
+              "fil": "Filipino",
+              "sw": "Kiswahili",
+              "sv": "Svenska",
+              "no": "Norsk",
+              "da": "Dansk",
+              "fi": "Suomi",
+              "cs": "Čeština",
+              "ro": "Română",
+              "hu": "Magyar",
+              "el": "Ελληνικά",
+              "bg": "Български",
+              "sr": "Српски",
+              "hr": "Hrvatski",
+              "sk": "Slovenčina",
+              "lt": "Lietuvių"
+            }
+          },
+          "configure": {
+            "label": "配置 API Key 与模型…",
+            "tooltip": "为每个翻译提供商设置对应选项。"
+          },
+          "clear-cache": {
+            "label": "清空翻译缓存",
+            "tooltip": "删除磁盘上所有已缓存的翻译结果。"
+          },
+          "providers": {
+            "shared": {
+              "api-key": "API Key",
+              "model": "模型"
+            },
+            "openai-compatible": {
+              "name": "OpenAI 兼容",
+              "prompt-title": "OpenAI 兼容端点设置",
+              "prompt-label": "可使用 OpenAI 兼容端点,包括 Ollama。Ollama 通常填 Base URL: http://127.0.0.1:11434/v1, API mode 用 auto 或 chat-completions。",
+              "base-url": "Base URL",
+              "api-mode": "API mode (responses / auto / chat-completions)"
+            },
+            "anthropic": {
+              "name": "Anthropic Claude",
+              "prompt-title": "Anthropic 设置",
+              "prompt-label": "使用 Anthropic 原生 Messages API。"
+            },
+            "gemini": {
+              "name": "Google Gemini",
+              "prompt-title": "Gemini 设置",
+              "prompt-label": "使用 Google Generative Language API(generateContent)。"
+            },
+            "local-cli": {
+              "name": "本地 CLI",
+              "prompt-title": "本地 CLI 设置",
+              "prompt-label": "使用本机已登录的 Claude Code、Codex 或 Gemini CLI。命令和模型自动处理,直接使用该 CLI 当前登录账号和默认模型。",
+              "engine": "本地 CLI",
+              "engine-claude": "Claude Code",
+              "engine-codex": "Codex",
+              "engine-gemini": "Gemini CLI",
+              "command": "命令",
+              "timeout": "超时时间秒数 (15-600)"
+            },
+            "google-translate": {
+              "name": "Google 翻译",
+              "prompt-title": "Google 翻译设置",
+              "prompt-label": "使用非官方免费 Google Translate 端点,无需 API Key,但可能被 Google 限流。",
+              "host": "Host"
+            }
+          }
         }
       },
       "name": "滚动歌词",

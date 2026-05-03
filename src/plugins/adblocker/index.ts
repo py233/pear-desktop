@@ -109,7 +109,18 @@ export default createPlugin({
         },
     },
     preload: {
-        script: 'window.JSON.parse = window._proxyJsonParse; window._proxyJsonParse = undefined; window.Response.prototype.json = window._proxyResponseJson; window._proxyResponseJson = undefined; 0',
+        script: `const _prunerFn = window._pruner;
+    window._pruner = undefined;
+    JSON.parse = new Proxy(JSON.parse, {
+      apply(target, thisArg, args) {
+        return _prunerFn(Reflect.apply(target, thisArg, args));
+      },
+    });
+    Response.prototype.json = new Proxy(Response.prototype.json, {
+      apply(target, thisArg, args) {
+        return Reflect.apply(target, thisArg, args).then((o) => _prunerFn(o));
+      },
+    }); 0`,
         async start({ getConfig }) {
             const config = await getConfig();
 

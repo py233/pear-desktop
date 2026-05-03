@@ -91,6 +91,31 @@ test('attributes', () => {
   });
 });
 
+test('colon-separated centiseconds', () => {
+  const lrc = LRC.parse(`\
+[00:15:41]何が優しさで
+[00:16:48]何が幸せ？\
+`);
+
+  expect(lrc.lines).toStrictEqual([
+    { duration: 15410, text: '', words: [], time: '00:00:00', timeInMs: 0 },
+    {
+      duration: 1070,
+      text: '何が優しさで',
+      words: [],
+      time: '00:15:41',
+      timeInMs: 15410,
+    },
+    {
+      duration: Infinity,
+      text: '何が幸せ？',
+      words: [],
+      time: '00:16:48',
+      timeInMs: 16480,
+    },
+  ]);
+});
+
 test('karaoke', () => {
   const lrc = LRC.parse(
     '[00:00.00] <00:00.04> When <00:00.16> the <00:00.82> truth <00:01.29> is <00:01.63> found <00:03.09> to <00:03.37> be <00:05.92> lies',

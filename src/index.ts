@@ -127,9 +127,7 @@ if (config.get('options.disableHardwareAcceleration')) {
 
 if (is.linux()) {
   // Overrides WM_CLASS for X11 to correspond to icon filename
-  app.setName(
-    'com.github.th_ch.\u0079\u006f\u0075\u0074\u0075\u0062\u0065\u005f\u006d\u0075\u0073\u0069\u0063',
-  );
+  app.setName('io.github.py233.pear_desktop_personal');
 
   // Stops chromium from launching its own MPRIS service
   if (await config.plugins.isEnabled('shortcuts')) {
@@ -350,7 +348,7 @@ async function createMainWindow() {
 
   const electronWindowSettings: Electron.BrowserWindowConstructorOptions = {
     icon,
-    title: '\u0059\u006f\u0075\u0074\u0075\u0062\u0065 \u004D\u0075\u0073\u0069\u0063',
+    title: 'Pear Desktop Personal',
     width: windowSize.width,
     height: windowSize.height,
     minWidth: 325,
@@ -392,12 +390,16 @@ async function createMainWindow() {
 
     const scaledX = windowX;
     const scaledY = windowY;
+    const scaledHalfWidth = scaledWidth / 2;
+    const scaledHalfHeight = scaledHeight / 2;
+    const scaledMidX = scaledX + scaledHalfWidth;
+    const scaledMidY = scaledY + scaledHalfHeight;
 
     if (
-      scaledX + scaledWidth / 2 < display.bounds.x - 8 || // Left
-      scaledX + scaledWidth / 2 > display.bounds.x + display.bounds.width || // Right
+      scaledMidX < display.bounds.x - 8 || // Left
+      scaledMidX > display.bounds.x + display.bounds.width || // Right
       scaledY < display.bounds.y - 8 || // Top
-      scaledY + scaledHeight / 2 > display.bounds.y + display.bounds.height // Bottom
+      scaledMidY > display.bounds.y + display.bounds.height // Bottom
     ) {
       // Window is offscreen
       if (is.dev()) {
@@ -663,8 +665,7 @@ app.whenReady().then(async () => {
 
   // Register appID on windows
   if (is.windows()) {
-    const appID =
-      'com.github.th-ch.\u0079\u006f\u0075\u0074\u0075\u0062\u0065\u002d\u006d\u0075\u0073\u0069\u0063';
+    const appID = 'io.github.py233.pear-desktop-personal';
     app.setAppUserModelId(appID);
     const appLocation = process.execPath;
     const appData = app.getPath('appData');
@@ -806,8 +807,9 @@ app.whenReady().then(async () => {
       electronUpdater.autoUpdater.checkForUpdatesAndNotify();
       clearTimeout(updateTimeout);
     }, 2000);
-    autoUpdater.on('update-available', () => {
-      const downloadLink = 'https://github.com/ArjixWasTaken/pear-desktop/releases/latest';
+    electronUpdater.autoUpdater.on('update-available', () => {
+      const downloadLink =
+        'https://github.com/py233/pear-desktop/releases/latest';
       const dialogOptions: Electron.MessageBoxOptions = {
         type: 'info',
         buttons: [

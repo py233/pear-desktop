@@ -39,17 +39,7 @@ export const inject = (contextBridge) => {
             return o;
         };
 
-        contextBridge.exposeInMainWorld('_proxyJsonParse', new Proxy(JSON.parse, {
-            apply() {
-                return pruner(Reflect.apply(...arguments));
-            },
-        }));
-
-        contextBridge.exposeInMainWorld('_proxyResponseJson', new Proxy(Response.prototype.json, {
-            apply() {
-                return Reflect.apply(...arguments).then((o) => pruner(o));
-            },
-        }));
+        contextBridge.exposeInMainWorld('_pruner', pruner);
     }
 
     const chains = [
