@@ -118,12 +118,18 @@ importers:
       '@jellybrick/mpris-service':
         specifier: 2.1.5
         version: 2.1.5
+      '@lit-labs/ssr-dom-shim':
+        specifier: 1.5.1
+        version: 1.5.1
       '@mdui/icons':
         specifier: 1.0.3
         version: 1.0.3
       '@skyra/jaro-winkler':
         specifier: 1.1.1
         version: 1.1.1
+      '@types/trusted-types':
+        specifier: 2.0.7
+        version: 2.0.7
       '@vitalets/google-translate-api':
         specifier: 9.2.1
         version: 9.2.1
@@ -142,6 +148,9 @@ importers:
       butterchurn-presets:
         specifier: 3.0.0-beta.4
         version: 3.0.0-beta.4
+      call-bind-apply-helpers:
+        specifier: 1.0.2
+        version: 1.0.2
       chinese-conv:
         specifier: ^4.0.0
         version: 4.0.0
@@ -157,15 +166,27 @@ importers:
       custom-electron-prompt:
         specifier: 1.6.1
         version: 1.6.1(electron@40.8.5)
+      data-uri-to-buffer:
+        specifier: 4.0.1
+        version: 4.0.1
+      deep-extend:
+        specifier: 0.6.0
+        version: 0.6.0
       deepmerge-ts:
         specifier: 7.1.5
         version: 7.1.5
+      dunder-proto:
+        specifier: 1.0.1
+        version: 1.0.1
       electron-debug:
         specifier: 4.1.0
         version: 4.1.0
       electron-is:
         specifier: 3.0.0
         version: 3.0.0(patch_hash=08664a5453f092fe45542f9005ffc07527b1f207447318374cba0f4d30f466a0)
+      electron-is-accelerator:
+        specifier: 0.1.2
+        version: 0.1.2
       electron-localshortcut:
         specifier: 3.2.1
         version: 3.2.1
@@ -178,6 +199,9 @@ importers:
       electron-updater:
         specifier: 6.8.3
         version: 6.8.3
+      es-define-property:
+        specifier: 1.0.1
+        version: 1.0.1
       es-hangul:
         specifier: 2.3.8
         version: 2.3.8
@@ -187,12 +211,21 @@ importers:
       fast-equals:
         specifier: 6.0.0
         version: 6.0.0
+      fetch-blob:
+        specifier: 3.2.0
+        version: 3.2.0
       fflate:
         specifier: 0.8.2
         version: 0.8.2
       filenamify:
         specifier: 7.0.1
         version: 7.0.1
+      formdata-polyfill:
+        specifier: 4.0.10
+        version: 4.0.10
+      function-bind:
+        specifier: 1.1.2
+        version: 1.1.2
       hanja:
         specifier: 1.1.5
         version: 1.1.5
@@ -211,6 +244,9 @@ importers:
       i18next:
         specifier: 26.0.4
         version: 26.0.4(typescript@6.0.2)
+      ini:
+        specifier: 1.3.8
+        version: 1.3.8
       keyboardevent-from-electron-accelerator:
         specifier: 2.0.0
         version: 2.0.0
@@ -229,15 +265,42 @@ importers:
       lazy-var:
         specifier: 2.2.2
         version: 2.2.2
+      leac:
+        specifier: 0.6.0
+        version: 0.6.0
+      lit-element:
+        specifier: 4.2.2
+        version: 4.2.2
+      lit-html:
+        specifier: 3.3.2
+        version: 3.3.2
+      math-intrinsics:
+        specifier: 1.1.0
+        version: 1.1.0
       mdui:
         specifier: 2.1.4
         version: 2.1.4(patch_hash=008b925e23862ced06c38f9765eef4322eb8a93cb5e9a6b684fd717fec0ea0d9)
+      minimist:
+        specifier: 1.2.8
+        version: 1.2.8
+      node-domexception:
+        specifier: 1.0.0
+        version: 1.0.0
       node-html-parser:
         specifier: 7.1.0
         version: 7.1.0
       node-id3:
         specifier: 0.2.9
         version: 0.2.9
+      object-inspect:
+        specifier: 1.13.4
+        version: 1.13.4
+      parseley:
+        specifier: 0.12.1
+        version: 0.12.1
+      peberminta:
+        specifier: 0.9.0
+        version: 0.9.0
       peerjs:
         specifier: 1.5.5
         version: 1.5.5
@@ -247,9 +310,27 @@ importers:
       semver:
         specifier: 7.7.4
         version: 7.7.4
+      seroval:
+        specifier: 1.5.2
+        version: 1.5.2
+      seroval-plugins:
+        specifier: 1.5.2
+        version: 1.5.2(seroval@1.5.2)
       serve:
         specifier: 14.2.6
         version: 14.2.6
+      set-function-length:
+        specifier: 1.2.2
+        version: 1.2.2
+      side-channel-list:
+        specifier: 1.0.1
+        version: 1.0.1
+      side-channel-map:
+        specifier: 1.0.1
+        version: 1.0.1
+      side-channel-weakmap:
+        specifier: 1.0.2
+        version: 1.0.2
       socks:
         specifier: 2.8.7
         version: 2.8.7
@@ -268,18 +349,33 @@ importers:
       solid-transition-group:
         specifier: 0.3.0
         version: 0.3.0(solid-js@1.9.12)
+      strip-json-comments:
+        specifier: 2.0.1
+        version: 2.0.1
+      tagged-tag:
+        specifier: 1.0.0
+        version: 1.0.0
       tinyld:
         specifier: 1.3.4
         version: 1.3.4
+      tldts-core:
+        specifier: 7.0.28
+        version: 7.0.28
       virtua:
         specifier: 0.49.1
         version: 0.49.1(solid-js@1.9.12)
       vudio:
         specifier: 2.1.1
         version: 2.1.1(patch_hash=0e06c2ed11c02bdc490c209fa80070e98517c2735c641f5738b6e15d7dc1959d)
+      web-streams-polyfill:
+        specifier: 3.3.3
+        version: 3.3.3
       x11:
         specifier: 2.3.0
         version: 2.3.0
+      yaml:
+        specifier: 2.8.3
+        version: 2.8.3
       youtubei.js:
         specifier: 17.0.1
         version: 17.0.1
@@ -320,9 +416,6 @@ importers:
       '@types/semver':
         specifier: 7.7.1
         version: 7.7.1
-      '@types/trusted-types':
-        specifier: 2.0.7
-        version: 2.0.7
       '@types/ws':
         specifier: 8.18.1
         version: 8.18.1
