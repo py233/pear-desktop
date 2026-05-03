@@ -143,10 +143,9 @@ jobs:
         with:
           name: pear-desktop-personal-windows-x64
           path: |
-            pack/*Setup*.exe
-            pack/*.nsis.7z
-            pack/latest.yml
-            pack/Pear Desktop Personal.exe
+            pack/nsis-web/*Setup*.exe
+            pack/nsis-web/*.nsis.7z
+            pack/nsis-web/latest.yml
           if-no-files-found: error
 
   package-linux-appimage-x64:
