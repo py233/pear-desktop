@@ -221,7 +221,7 @@ jobs:
               -name '*.AppImage.blockmap' -o \
               -name 'latest-*.yml' -o \
               -name 'latest.yml' \
-            \) -print0 | sort -z
+            \) ! -name 'elevate.exe' -print0 | sort -z
           )
 
           if [ "${#ASSETS[@]}" -eq 0 ]; then
