@@ -278,9 +278,26 @@ export const PanelItem = (props: PanelItemProps) => {
   };
 
   const handleClick = async () => {
-    await window.ipcRenderer.invoke('peard:menu-event', props.commandId);
+    if (props.type === 'submenu') {
+      setOpen(true);
+      return;
+    }
+
+    const checked =
+      props.type === 'radio'
+        ? true
+        : props.type === 'checkbox'
+          ? !props.checked
+          : undefined;
+
+    await window.ipcRenderer.invoke(
+      'peard:menu-event',
+      props.commandId,
+      checked,
+    );
+
     if (props.type === 'radio') {
-      props.onChange?.(!props.checked);
+      props.onChange?.(true);
     } else if (props.type === 'checkbox') {
       props.onChange?.(!props.checked);
     } else if (props.type === 'normal') {

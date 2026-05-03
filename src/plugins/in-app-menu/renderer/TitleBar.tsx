@@ -214,52 +214,12 @@ export const TitleBar = (props: TitleBarProps) => {
     await props.ipc.invoke('window-close');
   };
 
-  const refreshMenuItem = async (originalMenu: Menu, commandId: number) => {
-    const menuItem = (await window.ipcRenderer.invoke(
-      'get-menu-by-id',
-      commandId,
-    )) as MenuItem | null;
-
-    const newMenu = structuredClone(originalMenu);
-    const stack = [...(newMenu?.items ?? [])];
-    let now: MenuItem | undefined = stack.pop();
-    while (now) {
-      const index =
-        now?.submenu?.items?.findIndex((it) => it.commandId === commandId) ??
-        -1;
-
-      if (index >= 0) {
-        if (menuItem) now?.submenu?.items?.splice(index, 1, menuItem);
-        else now?.submenu?.items?.splice(index, 1);
-      }
-      if (now?.submenu) {
-        stack.push(...now.submenu.items);
-      }
-
-      now = stack.pop();
-    }
-
-    return newMenu;
+  const reloadMenu = async () => {
+    setMenu((await props.ipc.invoke('get-menu')) as Menu | null);
   };
 
-  const handleItemClick = async (
-    commandId: number,
-    radioGroup?: MenuItem[],
-  ) => {
-    const menuData = menu();
-    if (!menuData) return;
-
-    if (Array.isArray(radioGroup)) {
-      let newMenu = menuData;
-      for (const item of radioGroup) {
-        newMenu = await refreshMenuItem(newMenu, item.commandId);
-      }
-
-      setMenu(newMenu);
-      return;
-    }
-
-    setMenu(await refreshMenuItem(menuData, commandId));
+  const handleItemClick = async () => {
+    await reloadMenu();
   };
 
   const listener = (e: MouseEvent) => {

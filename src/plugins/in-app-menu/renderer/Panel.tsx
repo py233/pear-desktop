@@ -7,6 +7,7 @@ import {
   flip,
   offset,
   type OffsetOptions,
+  shift,
   size,
 } from '@floating-ui/dom';
 import { useFloating } from 'solid-floating-ui';
@@ -66,6 +67,21 @@ const animationStyle = cacheNoArgs(() => ({
   `,
 }));
 
+const titleBarSafePadding = () => {
+  const height = getComputedStyle(document.documentElement)
+    .getPropertyValue('--menu-bar-height')
+    .trim();
+  const parsed = Number.parseFloat(height);
+  return Number.isFinite(parsed) ? parsed + 8 : 40;
+};
+
+const viewportPadding = () => ({
+  top: titleBarSafePadding(),
+  right: 8,
+  bottom: 8,
+  left: 8,
+});
+
 export type Placement =
   | 'top'
   | 'bottom'
@@ -102,8 +118,13 @@ export const Panel = (props: PanelProps) => {
     strategy: 'fixed',
     middleware: [
       offset(local.offset),
+      flip({
+        padding: viewportPadding(),
+        fallbackStrategy: 'initialPlacement',
+      }),
+      shift({ padding: viewportPadding(), crossAxis: true }),
       size({
-        padding: 8,
+        padding: viewportPadding(),
         apply({ elements, availableWidth, availableHeight }) {
           elements.floating.style.setProperty(
             '--max-width',
@@ -111,11 +132,10 @@ export const Panel = (props: PanelProps) => {
           );
           elements.floating.style.setProperty(
             '--max-height',
-            `${Math.max(200, availableHeight)}px`,
+            `${Math.max(120, availableHeight)}px`,
           );
         },
       }),
-      flip({ fallbackStrategy: 'initialPlacement' }),
     ],
   });
 

@@ -26,7 +26,7 @@ on:
       release_tag:
         description: Release tag to publish or replace
         required: false
-        default: v3.11.4-personal.1
+        default: v3.11.4-personal.2
         type: string
 
 permissions:
@@ -142,14 +142,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --config.node-linker=hoisted
 
-      - name: Build Windows x64 installer
+      - name: Build Windows x64 installer and portable app
         shell: pwsh
         run: |
           pnpm clean
           pnpm build
           Move-Item pnpm-lock.yaml pnpm-lock.yaml.packaging
           try {
-            pnpm electron-builder --win nsis:x64 -p never
+            pnpm electron-builder --win nsis:x64 portable:x64 -p never
           } finally {
             Move-Item pnpm-lock.yaml.packaging pnpm-lock.yaml
           }
@@ -162,7 +162,7 @@ jobs:
         with:
           name: pear-desktop-personal-windows-x64
           path: |
-            pack/*Setup*.exe
+            pack/*.exe
             pack/*.exe.blockmap
             pack/latest.yml
           if-no-files-found: error
@@ -272,6 +272,8 @@ jobs:
             for asset in "${ASSETS[@]}"; do
               echo "- $(basename "$asset")"
             done
+            echo
+            echo "Windows artifacts include both an offline Setup installer and a portable .exe build."
             echo
             echo "Testing note:"
             echo "- I have only tested this build on macOS 15.6.1."

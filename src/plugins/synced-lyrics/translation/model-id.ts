@@ -1,3 +1,5 @@
+import { normalizeGoogleTranslateHost } from './providers/google-translate-host';
+
 import type {
   TranslationProviderName,
   TranslationProviderSettings,
@@ -14,7 +16,7 @@ export const getTranslationModelId = (
 
   if (provider === 'google-translate') {
     const google = settings as TranslationProviderSettings['google-translate'];
-    return `google-translate:${google.host || 'translate.google.com'}`;
+    return `google-translate:${normalizeGoogleTranslateHost(google.host)}`;
   }
 
   return (settings as { model?: string }).model ?? '';

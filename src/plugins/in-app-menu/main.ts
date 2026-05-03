@@ -54,17 +54,28 @@ export const onMainLoad = ({
     return target;
   };
 
-  ipcMain.handle('peard:menu-event', (event, commandId: number) => {
-    const target = getMenuItemById(commandId);
-    if (target)
-      (
-        target.click as (
-          args0: unknown,
-          args1: BrowserWindow | null,
-          args3: WebContents,
-        ) => void
-      )(undefined, BrowserWindow.fromWebContents(event.sender), event.sender);
-  });
+  ipcMain.handle(
+    'peard:menu-event',
+    async (event, commandId: number, checked?: boolean) => {
+      const target = getMenuItemById(commandId);
+      if (!target) return false;
+
+      if (typeof checked === 'boolean') {
+        target.checked = checked;
+      }
+
+      await Promise.resolve(
+        (
+          target.click as (
+            args0: MenuItem,
+            args1: BrowserWindow | null,
+            args3: WebContents,
+          ) => void | Promise<void>
+        )(target, BrowserWindow.fromWebContents(event.sender), event.sender),
+      );
+      return true;
+    },
+  );
 
   handle('get-menu-by-id', (commandId: number) => {
     const result = getMenuItemById(commandId);

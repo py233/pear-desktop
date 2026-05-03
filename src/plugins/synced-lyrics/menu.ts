@@ -5,6 +5,7 @@ import promptOptions from '@/providers/prompt-options';
 
 import { providerNames } from './providers';
 import { clearCache as clearTranslationCache } from './translation/cache';
+import { normalizeGoogleTranslateHost } from './translation/providers/google-translate-host';
 
 import type { MenuItemConstructorOptions } from 'electron';
 import type { MenuContext } from '@/types/contexts';
@@ -237,7 +238,7 @@ const promptProviderSettings = async (
               'plugins.synced-lyrics.menu.translation.providers.google-translate.host',
             ),
             inputAttrs: { type: 'text' },
-            value: current.host || 'translate.google.com',
+            value: normalizeGoogleTranslateHost(current.host),
           },
         ],
         resizable: true,
@@ -252,7 +253,7 @@ const promptProviderSettings = async (
       providers: {
         ...translation.providers,
         'google-translate': {
-          host: output[0] || current.host || 'translate.google.com',
+          host: normalizeGoogleTranslateHost(output[0] || current.host),
         },
       },
     }));
@@ -635,8 +636,8 @@ export const menu = async (
             label: t(
               `plugins.synced-lyrics.menu.translation.providers.${p}.name`,
             ),
-            click() {
-              promptProviderSettings(p, ctx).catch((err: unknown) => {
+            async click() {
+              await promptProviderSettings(p, ctx).catch((err: unknown) => {
                 console.error('[synced-lyrics] prompt failed:', err);
               });
             },
