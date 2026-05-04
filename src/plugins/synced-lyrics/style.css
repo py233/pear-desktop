@@ -157,6 +157,22 @@
   transition: opacity var(--lyrics-opacity-transition);
 }
 
+#synced-lyrics-container .translation-attribution {
+  color: var(--ytmusic-text-secondary) !important;
+  font-family: var(--lyrics-font-family) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  margin: 1.5rem 20px 3rem 0;
+  opacity: 0.62;
+  text-align: left !important;
+}
+
+#synced-lyrics-container .translation-attribution yt-formatted-string {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
 #synced-lyrics-container .current .text-lyrics {
   font-weight: var(--lyrics-active-font-weight) !important;
   scale: var(--lyrics-active-scale);

@@ -22,6 +22,13 @@ interface VideoTranslation {
   // Indexed by line index in the lyrics' lines[] array.
   lines: string[];
   error?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface TranslationAttribution {
+  provider: string;
+  model?: string;
 }
 
 interface TranslationStore {
@@ -106,6 +113,44 @@ const cacheKeyFor = (
 
 const toPlainJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+const providerLabel = (
+  providerName: TranslationProviderName | 'official-lyrics',
+  settings?: TranslationProviderSettings[TranslationProviderName],
+): string => {
+  if (providerName === 'google-translate') return 'Google Translate';
+  if (providerName === 'openai-compatible') return 'OpenAI-compatible';
+  if (providerName === 'anthropic') return 'Anthropic';
+  if (providerName === 'gemini') return 'Gemini';
+  if (providerName === 'official-lyrics') return 'official lyrics';
+
+  const engine = (settings as TranslationProviderSettings['local-cli'])
+    ?.engine;
+  if (engine === 'codex') return 'Codex CLI';
+  if (engine === 'gemini') return 'Gemini CLI';
+  return 'Claude Code';
+};
+
+const displayModelFor = (
+  providerName: TranslationProviderName,
+  settings: TranslationProviderSettings[TranslationProviderName],
+  reportedModel: string | undefined,
+  fallbackModel: string,
+): string | undefined => {
+  const cleanReported = reportedModel?.trim();
+
+  if (providerName === 'local-cli') {
+    if (cleanReported && !cleanReported.endsWith(':auto')) {
+      return cleanReported;
+    }
+    return 'auto';
+  }
+
+  if (providerName === 'google-translate') return undefined;
+
+  const configuredModel = (settings as { model?: string }).model?.trim();
+  return cleanReported || configuredModel || fallbackModel || undefined;
+};
+
 const plainProviderSettings = (
   providerName: TranslationProviderName,
   settings: TranslationProviderSettings[TranslationProviderName],
@@ -177,6 +222,21 @@ export const clearTranslationMemoryCacheForVideo = (videoId: string) => {
   return count;
 };
 
+export const getTranslationAttribution = (): TranslationAttribution | null => {
+  const current = translationStore.current;
+  if (
+    !current ||
+    current.state !== 'done' ||
+    !current.lines.some((line) => line.trim())
+  ) {
+    return null;
+  }
+
+  return current.provider
+    ? { provider: current.provider, model: current.model }
+    : null;
+};
+
 export const setOfficialTranslation = (
   videoId: string,
   language: string,
@@ -192,7 +252,11 @@ export const setOfficialTranslation = (
     sourceLines.length,
     JSON.stringify(sourceLines),
   );
-  const done: VideoTranslation = { state: 'done', lines: translatedLines };
+  const done: VideoTranslation = {
+    state: 'done',
+    lines: translatedLines,
+    provider,
+  };
 
   cache.set(key, done);
   if (translationStore.videoId === videoId && translationStore.key === key) {
@@ -275,7 +339,12 @@ export const fetchTranslation = async (
     return;
   }
 
-  const pending: VideoTranslation = { state: 'fetching', lines: [] };
+  const pending: VideoTranslation = {
+    state: 'fetching',
+    lines: [],
+    provider: providerLabel(providerName, settings),
+    model: displayModelFor(providerName, settings, undefined, model),
+  };
   cache.set(key, pending);
   setTranslationStore({ current: pending, videoId, key });
 
@@ -329,7 +398,12 @@ export const fetchTranslation = async (
       strategyVersion: TRANSLATION_STRATEGY_VERSION,
       lines: result.lines.length,
     });
-    const done: VideoTranslation = { state: 'done', lines: result.lines };
+    const done: VideoTranslation = {
+      state: 'done',
+      lines: result.lines,
+      provider: providerLabel(providerName, settings),
+      model: displayModelFor(providerName, settings, undefined, model),
+    };
     cache.set(key, done);
     if (translationStore.videoId === videoId && translationStore.key === key) {
       setTranslationStore({ current: done, videoId, key });

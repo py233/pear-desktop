@@ -21,6 +21,7 @@ import {
 } from './components';
 
 import { currentLyrics, hasLyricText, splitPlainLyrics } from './store';
+import { getTranslationAttribution } from './translation-store';
 
 import type { LineLyrics, SyncedLyricsPluginConfig } from '../types';
 
@@ -143,9 +144,30 @@ type LyricsRendererChild =
   | {
       kind: 'PlainLine';
       line: string;
+    }
+  | {
+      kind: 'TranslationAttribution';
+      provider: string;
+      model?: string;
     };
 
 const lyricsPicker: LyricsRendererChild = { kind: 'LyricsPicker' };
+
+const TranslationAttributionLine = (props: {
+  provider: string;
+  model?: string;
+}) => {
+  const text = () =>
+    props.model
+      ? `Translated via ${props.provider} (${props.model})`
+      : `Translated via ${props.provider}`;
+
+  return (
+    <div class="translation-attribution description ytmusic-description-shelf-renderer">
+      <yt-formatted-string text={{ runs: [{ text: text() }] }} />
+    </div>
+  );
+};
 
 export const [currentTime, setCurrentTime] = createSignal<number>(-1);
 export const LyricsRenderer = () => {
@@ -204,6 +226,21 @@ export const LyricsRenderer = () => {
     }
 
     const { state, data, error } = current;
+    const withAttribution = (
+      items: LyricsRendererChild[],
+    ): LyricsRendererChild[] => {
+      const attribution = getTranslationAttribution();
+      return attribution
+        ? [
+            ...items,
+            {
+              kind: 'TranslationAttribution',
+              provider: attribution.provider,
+              model: attribution.model,
+            },
+          ]
+        : items;
+    };
 
     setChildren(() => {
       if (state === 'fetching') {
@@ -215,18 +252,22 @@ export const LyricsRenderer = () => {
       }
 
       if (data?.lines?.some((line) => line.text.trim())) {
-        return data.lines.map((line) => ({
-          kind: 'SyncedLine' as const,
-          line,
-        }));
+        return withAttribution(
+          data.lines.map((line) => ({
+            kind: 'SyncedLine' as const,
+            line,
+          })),
+        );
       }
 
       if (data?.lyrics?.trim()) {
         const lines = splitPlainLyrics(data.lyrics);
-        return lines.map((line) => ({
-          kind: 'PlainLine' as const,
-          line,
-        }));
+        return withAttribution(
+          lines.map((line) => ({
+            kind: 'PlainLine' as const,
+            line,
+          })),
+        );
       }
 
       return hasLyricText(data)
@@ -316,6 +357,9 @@ export const LyricsRenderer = () => {
             }
             case 'PlainLine': {
               return <PlainLyrics {...props} index={idx() - 1} />;
+            }
+            case 'TranslationAttribution': {
+              return <TranslationAttributionLine {...props} />;
             }
           }
         }}

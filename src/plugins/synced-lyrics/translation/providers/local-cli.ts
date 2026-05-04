@@ -223,6 +223,12 @@ export const localCliProvider: TranslationProvider = {
     if (!parsed) {
       throw new Error('Could not parse JSON from Local CLI response');
     }
+    console.info('[synced-lyrics] Local CLI translation ready', {
+      engine: normalizedEngine,
+      command: resolvedCommand,
+      model: 'auto',
+      lines: parsed.length,
+    });
     return parsed;
   },
 };

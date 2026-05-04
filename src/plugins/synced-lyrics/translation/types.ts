@@ -12,10 +12,6 @@ export interface TranslationRequest {
   lines: string[];
 }
 
-export interface TranslationResult {
-  lines: string[];
-}
-
 export interface TranslationProvider {
   name: TranslationProviderName;
   translate(

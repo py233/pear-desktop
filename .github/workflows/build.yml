@@ -271,6 +271,7 @@ jobs:
             echo "- Added whole-song Google Translate support with local caching, so repeated translation requests do not re-call the provider unnecessarily."
             echo "- Kept translated lines visually tied to their source lyric line, including active/highlight state."
             echo "- Skips translation when the lyric language already matches the target language."
+            echo "- Added a small footer below translated lyrics showing the translation source. API providers show the configured model, local CLI providers show their CLI name with auto model selection, and Google Translate/official lyric translations show their provider name."
             echo
             echo "### Lyrics Matching"
             echo "- Improved NetEase matching for producer-prefixed titles and Vocaloid/voicebank fragments, especially Japanese songs where the official title is after the producer name."

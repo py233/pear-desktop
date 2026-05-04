@@ -45,7 +45,11 @@ interface TranslateInvokeArgs {
 
 const handleTranslate = async (
   args: TranslateInvokeArgs,
-): Promise<{ lines: string[]; fromCache: boolean; error?: string }> => {
+): Promise<{
+  lines: string[];
+  fromCache: boolean;
+  error?: string;
+}> => {
   const model = getTranslationModelId(args.provider, args.settings);
   const sourceHash = buildSourceHash(args.request.lines);
   const cacheKey = buildCacheKey({
@@ -70,7 +74,10 @@ const handleTranslate = async (
       strategyVersion: TRANSLATION_STRATEGY_VERSION,
       lines: cached.lines.length,
     });
-    return { lines: cached.lines, fromCache: true };
+    return {
+      lines: cached.lines,
+      fromCache: true,
+    };
   }
 
   console.info('[synced-lyrics] translation request', {
@@ -119,7 +126,17 @@ const handleTranslate = async (
     lines,
   });
 
-  return { lines, fromCache: false };
+  console.info('[synced-lyrics] translation request ready', {
+    videoId: args.videoId,
+    provider: args.provider,
+    model,
+    lines: lines.length,
+  });
+
+  return {
+    lines,
+    fromCache: false,
+  };
 };
 
 export const backend = createBackend({

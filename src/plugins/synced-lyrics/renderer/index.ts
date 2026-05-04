@@ -32,7 +32,11 @@ export interface TranslateInvokeArgs {
 
 export let translateInvoke: (
   args: TranslateInvokeArgs,
-) => Promise<{ lines: string[]; fromCache: boolean; error?: string }>;
+) => Promise<{
+  lines: string[];
+  fromCache: boolean;
+  error?: string;
+}>;
 
 export const renderer = createRenderer<
   {
