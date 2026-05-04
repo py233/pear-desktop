@@ -22,7 +22,7 @@ on:
       release_tag:
         description: Release tag to publish or replace
         required: false
-        default: v3.11.4-personal.4
+        default: v3.11.4-personal.5
         type: string
 
 permissions:
