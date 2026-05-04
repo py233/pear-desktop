@@ -74,11 +74,12 @@ const INFO_NOISE_RE =
 const JAPANESE_INFO_NOISE_RE =
   /(?:公式|オフィシャル|ミュージックビデオ|歌詞付き|字幕|中文字幕|中日字幕|ＭＶ|ＰＶ)/g;
 const VOCAL_ARTIST_FRAGMENT_RE =
-  /(?:初音ミク|鏡音|巡音|音街ウナ|重音テト|可不|星界|裏命|狐子|羽累|花隈千冬|ナースロボ|タイプT|ずんだもん|KAITO|MEIKO|GUMI|IA|ONE|flower|vflower|CeVIO|VOCALOID|UTAU|SynthV|VOICEVOX|VOICEROID)/i;
+  /(?:初音ミク|Hatsune\s*Miku|鏡音|Kagamine|巡音|Megurine|音街ウナ|Otomachi\s*Una|重音テト|Kasane\s*Teto|可不|KAFU|星界|SEKAI|裏命|RIME|狐子|COKO|羽累|HARU|花隈千冬|Hanakuma\s*Chifuyu|ナースロボ|Nurse\s*Robot|タイプT|Type\s*T|ずんだもん|Zundamon|KAITO|MEIKO|GUMI|IA|ONE|flower|vflower|CeVIO|VOCALOID|UTAU|SynthV|VOICEVOX|VOICEROID)/i;
 const FEAT_BLOCK_RE =
   /[\s\u3000]*[([{（【［][^)\]}】］）]*(?:feat|ft|featuring)\.?\s+[^)\]}】］）]*[)\]}】］）]/gi;
 const FEAT_TAIL_RE = /(?:^|[\s\u3000(（[])(?:feat|ft|featuring)\.?\s+.+$/i;
 const TITLE_DELIMITER_RE = /\s+[-–—]\s+|\s+[/|]\s+|[／｜│]|\s+:\s+|[：]/;
+const BRACKET_BLOCK_RE = /[([{（【［]([^)\]}】］）]+)[)\]}】］）]/g;
 
 const normalizeLoose = (value: string) =>
   value
@@ -347,8 +348,17 @@ export class NetEase implements LyricProvider {
     });
   }
 
+  private cleanTitleFragment(fragment: string, artistNames: string[]): string {
+    return stripNoise(fragment)
+      .replace(BRACKET_BLOCK_RE, (match, content: string) =>
+        this.isArtistLike(content, artistNames) ? ' ' : match,
+      )
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private splitTitle(title: string, artistNames: string[]): string[] {
-    const cleaned = stripNoise(title);
+    const cleaned = this.cleanTitleFragment(title, artistNames);
     if (!cleaned) return [];
     const hasDelimiter = TITLE_DELIMITER_RE.test(cleaned);
 
@@ -359,7 +369,7 @@ export class NetEase implements LyricProvider {
     const fragments = cleaned
       .replace(/[「『](.+?)[」』]/g, '$1')
       .split(TITLE_DELIMITER_RE)
-      .map(stripNoise)
+      .map((part) => this.cleanTitleFragment(part, artistNames))
       .filter(Boolean);
     const parts = hasDelimiter
       ? [...quoted, ...fragments]
@@ -386,7 +396,7 @@ export class NetEase implements LyricProvider {
     );
     const candidates: SearchCandidate[] = [];
     const add = (candidateTitle: string, weight: number, withArtist = true) => {
-      const cleaned = stripNoise(candidateTitle);
+      const cleaned = this.cleanTitleFragment(candidateTitle, artistNames);
       if (!cleaned || this.isArtistLike(cleaned, artistNames)) return;
       candidates.push({ title: cleaned, weight, withArtist });
     };
