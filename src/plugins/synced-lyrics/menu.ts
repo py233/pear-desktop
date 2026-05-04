@@ -644,6 +644,19 @@ export const menu = async (
           })),
         },
         {
+          label: t(
+            'plugins.synced-lyrics.menu.translation.clear-current-cache.label',
+          ),
+          toolTip: t(
+            'plugins.synced-lyrics.menu.translation.clear-current-cache.tooltip',
+          ),
+          click() {
+            ctx.window.webContents.send(
+              'synced-lyrics:clear-current-translation-cache',
+            );
+          },
+        },
+        {
           label: t('plugins.synced-lyrics.menu.translation.clear-cache.label'),
           toolTip: t(
             'plugins.synced-lyrics.menu.translation.clear-cache.tooltip',

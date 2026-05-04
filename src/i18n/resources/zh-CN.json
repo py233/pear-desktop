@@ -994,6 +994,10 @@
             "label": "配置 API Key 与模型…",
             "tooltip": "为每个翻译提供商设置对应选项。"
           },
+          "clear-current-cache": {
+            "label": "清空当前歌曲翻译缓存",
+            "tooltip": "只删除当前播放歌曲的翻译缓存,然后用当前选择的提供商重新翻译。"
+          },
           "clear-cache": {
             "label": "清空翻译缓存",
             "tooltip": "删除磁盘上所有已缓存的翻译结果。"

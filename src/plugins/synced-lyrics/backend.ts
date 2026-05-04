@@ -6,6 +6,7 @@ import {
   buildCacheKey,
   buildSourceHash,
   clearCache,
+  clearCacheForVideo,
   readCache,
   writeCache,
 } from './translation/cache';
@@ -130,6 +131,10 @@ export const backend = createBackend({
       handleTranslate(args),
     );
     ctx.ipc.handle('synced-lyrics:translate-clear-cache', () => clearCache());
+    ctx.ipc.handle(
+      'synced-lyrics:translate-clear-video-cache',
+      (videoId: unknown) => clearCacheForVideo(String(videoId ?? '')),
+    );
     ctx.ipc.on(
       'synced-lyrics:translation-debug',
       (message: string, data?: unknown) => {
@@ -141,5 +146,6 @@ export const backend = createBackend({
     ctx.ipc.removeHandler('synced-lyrics:fetch');
     ctx.ipc.removeHandler('synced-lyrics:translate');
     ctx.ipc.removeHandler('synced-lyrics:translate-clear-cache');
+    ctx.ipc.removeHandler('synced-lyrics:translate-clear-video-cache');
   },
 });

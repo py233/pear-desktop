@@ -994,6 +994,10 @@
             "label": "Configure API key & model…",
             "tooltip": "Set provider-specific translation options."
           },
+          "clear-current-cache": {
+            "label": "Clear current song translation cache",
+            "tooltip": "Delete cached translations for only the currently playing song, then translate it again with the selected provider."
+          },
           "clear-cache": {
             "label": "Clear translation cache",
             "tooltip": "Delete all cached translations stored on disk."

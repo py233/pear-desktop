@@ -15,6 +15,14 @@ const getCacheDir = () => path.join(app.getPath('userData'), cacheDirName);
 const fileNameFor = (key: string) =>
   createHash('sha1').update(key).digest('hex') + '.json';
 
+const getVideoIdFromKey = (key: string): string | null =>
+  key.split('::')[1] || null;
+
+const cacheEntryMatchesVideo = (
+  entry: Pick<CacheEntry, 'key'>,
+  videoId: string,
+): boolean => getVideoIdFromKey(entry.key) === videoId;
+
 const ensureDir = async () => {
   const dir = getCacheDir();
   await fs.mkdir(dir, { recursive: true });
@@ -58,6 +66,38 @@ export const clearCache = async (): Promise<number> => {
     for (const name of entries) {
       if (name.endsWith('.json')) {
         await fs.unlink(path.join(dir, name)).catch(() => {});
+        count++;
+      }
+    }
+  } catch {
+    // dir may not exist yet — treat as 0
+  }
+  return count;
+};
+
+export const clearCacheForVideo = async (videoId: string): Promise<number> => {
+  if (!videoId) return 0;
+
+  const dir = getCacheDir();
+  let count = 0;
+  try {
+    const entries = await fs.readdir(dir);
+    for (const name of entries) {
+      if (!name.endsWith('.json')) continue;
+
+      const file = path.join(dir, name);
+      const content = await fs.readFile(file, 'utf-8').catch(() => null);
+      if (!content) continue;
+
+      let entry: CacheEntry | null = null;
+      try {
+        entry = JSON.parse(content) as CacheEntry;
+      } catch {
+        continue;
+      }
+
+      if (entry && cacheEntryMatchesVideo(entry, videoId)) {
+        await fs.unlink(file).catch(() => {});
         count++;
       }
     }

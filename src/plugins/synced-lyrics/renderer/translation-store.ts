@@ -39,6 +39,9 @@ export const [translationStore, setTranslationStore] =
 
 const cache = new Map<string, VideoTranslation>();
 
+const videoIdFromCacheKey = (key: string): string | null =>
+  key.split('::')[1] || null;
+
 export const resolveTargetLanguage = (
   target: TranslationTargetLanguage,
 ): string => {
@@ -154,6 +157,24 @@ const plainProviderSettings = (
 
 export const clearCurrentTranslation = () => {
   setTranslationStore({ current: null, videoId: null, key: null });
+};
+
+export const clearTranslationMemoryCacheForVideo = (videoId: string) => {
+  if (!videoId) return 0;
+
+  let count = 0;
+  for (const key of cache.keys()) {
+    if (videoIdFromCacheKey(key) === videoId) {
+      cache.delete(key);
+      count++;
+    }
+  }
+
+  if (translationStore.videoId === videoId) {
+    clearCurrentTranslation();
+  }
+
+  return count;
 };
 
 export const setOfficialTranslation = (

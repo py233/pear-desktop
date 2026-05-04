@@ -5,6 +5,7 @@ import { selectors, tabStates } from './utils';
 import { setConfig, setCurrentTime } from './renderer';
 import { refreshCurrentLyrics } from './store';
 import { setTranslationDebugSender, translationDebug } from './debug';
+import { clearTranslationMemoryCacheForVideo } from './translation-store';
 
 import type { RendererContext } from '@/types/contexts';
 import type { MusicPlayer } from '@/types/music-player';
@@ -116,6 +117,34 @@ export const renderer = createRenderer<
       refreshCurrentLyrics('song-info-update', info);
     });
 
+    ctx.ipc.on('synced-lyrics:clear-current-translation-cache', async () => {
+      const videoId = _ytAPI?.getVideoData?.()?.video_id;
+      if (!videoId) {
+        translationDebug('current translation cache clear skipped', {
+          reason: 'no active video',
+        });
+        return;
+      }
+
+      const diskEntries = await ctx.ipc
+        .invoke('synced-lyrics:translate-clear-video-cache', videoId)
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          translationDebug('current translation disk cache clear failed', {
+            videoId,
+            message,
+          });
+          return 0;
+        });
+      const memoryEntries = clearTranslationMemoryCacheForVideo(videoId);
+      translationDebug('current translation cache cleared', {
+        videoId,
+        diskEntries,
+        memoryEntries,
+      });
+      refreshCurrentLyrics('current-translation-cache-cleared');
+    });
+
     this.videoDataDocumentListener = () => {
       setTimeout(() => refreshCurrentLyrics('document-videodatachange'), 0);
     };
@@ -126,6 +155,10 @@ export const renderer = createRenderer<
   },
 
   stop() {
+    window.ipcRenderer?.removeAllListeners?.(
+      'synced-lyrics:clear-current-translation-cache',
+    );
+
     if (this.videoDataDocumentListener) {
       document.removeEventListener(
         'videodatachange',
