@@ -116,6 +116,31 @@ test('colon-separated centiseconds', () => {
   ]);
 });
 
+test('timestamps without centiseconds', () => {
+  const lrc = LRC.parse(`\
+[00:12]Line without centiseconds
+[00：16]Fullwidth colon timestamp\
+`);
+
+  expect(lrc.lines).toStrictEqual([
+    { duration: 12000, text: '', words: [], time: '00:00:00', timeInMs: 0 },
+    {
+      duration: 4000,
+      text: 'Line without centiseconds',
+      words: [],
+      time: '00:12:00',
+      timeInMs: 12000,
+    },
+    {
+      duration: Infinity,
+      text: 'Fullwidth colon timestamp',
+      words: [],
+      time: '00:16:00',
+      timeInMs: 16000,
+    },
+  ]);
+});
+
 test('karaoke', () => {
   const lrc = LRC.parse(
     '[00:00.00] <00:00.04> When <00:00.16> the <00:00.82> truth <00:01.29> is <00:01.63> found <00:03.09> to <00:03.37> be <00:05.92> lies',
