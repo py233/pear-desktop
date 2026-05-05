@@ -144,6 +144,7 @@ type LyricsRendererChild =
   | {
       kind: 'PlainLine';
       line: string;
+      romanizedLine?: string;
     }
   | {
       kind: 'TranslationAttribution';
@@ -263,9 +264,10 @@ export const LyricsRenderer = () => {
       if (data?.lyrics?.trim()) {
         const lines = splitPlainLyrics(data.lyrics);
         return withAttribution(
-          lines.map((line) => ({
+          lines.map((line, index) => ({
             kind: 'PlainLine' as const,
             line,
+            romanizedLine: data.romanizedLines?.[index],
           })),
         );
       }

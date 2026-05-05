@@ -32,12 +32,7 @@ import {
   ProviderNameSchema,
   type ProviderState,
 } from '../../providers';
-import {
-  currentLyrics,
-  hasLyricText,
-  lyricsStore,
-  setLyricsStore,
-} from '../store';
+import { hasLyricText, lyricsStore, setLyricsStore } from '../store';
 import { isChineseTranslationTarget } from '../translation-store';
 import { _ytAPI } from '../index';
 import { config } from '../renderer';
@@ -79,7 +74,8 @@ const providerBias = (p: ProviderName) => {
     (hasOfficialTranslation && wantsOfficialChineseTranslation ? 3 : 0) +
     (hasSyncedText ? 2 : -1) +
     (hasSyncedText && p === ProviderNames.YTMusic ? 1 : 0) +
-    (hasPlainText ? 1 : -1)
+    (hasPlainText ? 1 : -1) +
+    (data?.inexact ? -1 : 0)
   );
 };
 
@@ -232,73 +228,91 @@ export const LyricsPicker = (props: {
       <div class="lyrics-picker-content">
         <div class="lyrics-picker-content-label">
           <Index each={providerNames}>
-            {(provider) => (
-              <div
-                class="lyrics-picker-item"
-                style={{
-                  transform: `translateX(${providerIdx() * -100 - 5}%)`,
-                }}
-                tabindex="-1"
-              >
-                <Switch>
-                  <Match
-                    when={
-                      // prettier-ignore
-                      currentLyrics().state === 'fetching'
-                    }
-                  >
-                    <tp-yt-paper-spinner-lite
-                      active
-                      class="loading-indicator style-scope"
-                      style={{ padding: '5px', transform: 'scale(0.5)' }}
-                      tabindex="-1"
-                    />
-                  </Match>
-                  <Match when={currentLyrics().state === 'error'}>
-                    <LitElementWrapper
-                      elementClass={IconError}
-                      props={{ style: { padding: '5px', scale: '0.8' } }}
-                    />
-                  </Match>
-                  <Match
-                    when={
-                      currentLyrics().state === 'done' &&
-                      hasLyricText(currentLyrics().data)
-                    }
-                  >
-                    <LitElementWrapper
-                      elementClass={IconCheckCircle}
-                      props={{ style: { padding: '5px', scale: '0.8' } }}
-                    />
-                  </Match>
-                  <Match
-                    when={
-                      currentLyrics().state === 'done' &&
-                      !hasLyricText(currentLyrics().data)
-                    }
-                  >
-                    <LitElementWrapper
-                      elementClass={IconWarning}
-                      props={{ style: { padding: '5px', scale: '0.8' } }}
-                    />
-                  </Match>
-                </Switch>
-                <yt-formatted-string
-                  class="description ytmusic-description-shelf-renderer"
-                  text={{ runs: [{ text: provider() }] }}
-                />
-                <mdui-button-icon onClick={toggleStar} tabindex={-1}>
-                  <Show
-                    fallback={
-                      <LitElementWrapper elementClass={IconStarBorder} />
-                    }
-                    when={starredProvider() === provider()}
-                  >
-                    <LitElementWrapper elementClass={IconStar} />
-                  </Show>
-                </mdui-button-icon>
-              </div>
-            )}
+            {(provider) => {
+              const providerState = createMemo(
+                () => lyricsStore.lyrics[provider()],
+              );
+              const providerLabel = createMemo(() =>
+                providerState().data?.inexact
+                  ? `${provider()} · inexact`
+                  : provider(),
+              );
+
+              return (
+                <div
+                  class="lyrics-picker-item"
+                  style={{
+                    transform: `translateX(${providerIdx() * -100 - 5}%)`,
+                  }}
+                  tabindex="-1"
+                >
+                  <Switch>
+                    <Match when={providerState().state === 'fetching'}>
+                      <tp-yt-paper-spinner-lite
+                        active
+                        class="loading-indicator style-scope"
+                        style={{ padding: '5px', transform: 'scale(0.5)' }}
+                        tabindex="-1"
+                      />
+                    </Match>
+                    <Match when={providerState().state === 'error'}>
+                      <LitElementWrapper
+                        elementClass={IconError}
+                        props={{ style: { padding: '5px', scale: '0.8' } }}
+                      />
+                    </Match>
+                    <Match
+                      when={
+                        providerState().state === 'done' &&
+                        hasLyricText(providerState().data) &&
+                        providerState().data?.inexact
+                      }
+                    >
+                      <LitElementWrapper
+                        elementClass={IconWarning}
+                        props={{ style: { padding: '5px', scale: '0.8' } }}
+                      />
+                    </Match>
+                    <Match
+                      when={
+                        providerState().state === 'done' &&
+                        hasLyricText(providerState().data)
+                      }
+                    >
+                      <LitElementWrapper
+                        elementClass={IconCheckCircle}
+                        props={{ style: { padding: '5px', scale: '0.8' } }}
+                      />
+                    </Match>
+                    <Match
+                      when={
+                        providerState().state === 'done' &&
+                        !hasLyricText(providerState().data)
+                      }
+                    >
+                      <LitElementWrapper
+                        elementClass={IconWarning}
+                        props={{ style: { padding: '5px', scale: '0.8' } }}
+                      />
+                    </Match>
+                  </Switch>
+                  <yt-formatted-string
+                    class="description ytmusic-description-shelf-renderer"
+                    text={{ runs: [{ text: providerLabel() }] }}
+                  />
+                  <mdui-button-icon onClick={toggleStar} tabindex={-1}>
+                    <Show
+                      fallback={
+                        <LitElementWrapper elementClass={IconStarBorder} />
+                      }
+                      when={starredProvider() === provider()}
+                    >
+                      <LitElementWrapper elementClass={IconStar} />
+                    </Show>
+                  </mdui-button-icon>
+                </div>
+              );
+            }}
           </Index>
         </div>
 
@@ -307,7 +321,10 @@ export const LyricsPicker = (props: {
             {(_, idx) => (
               <li
                 class="lyrics-picker-dot"
-                onClick={() => setLyricsStore('provider', providerNames[idx()])}
+                onClick={() => {
+                  setHasManuallySwitchedProvider(true);
+                  setLyricsStore('provider', providerNames[idx()]);
+                }}
                 style={{
                   background: idx() === providerIdx() ? 'white' : 'black',
                 }}

@@ -67,6 +67,7 @@ type VideoId = string;
 type SearchCacheData = Record<ProviderName, ProviderState>;
 interface SearchCache {
   state: 'loading' | 'done';
+  policyKey: string;
   data: SearchCacheData;
 }
 
@@ -75,6 +76,11 @@ const searchCache = new Map<VideoId, SearchCache>();
 let activeSongInfo: SongInfo | null = null;
 let lastRefreshKey = '';
 let lastRefreshAt = 0;
+
+const lyricsSearchPolicyKey = () =>
+  JSON.stringify({
+    showLyricsEvenIfInexact: config()?.showLyricsEvenIfInexact ?? true,
+  });
 
 export const splitPlainLyrics = (lyrics: string): string[] =>
   lyrics
@@ -99,6 +105,7 @@ const cloneLyricResult = (data: LyricResult): LyricResult => ({
   ...data,
   artists: [...data.artists],
   lines: data.lines?.map((line) => ({ ...line })),
+  romanizedLines: data.romanizedLines ? [...data.romanizedLines] : undefined,
   translation: data.translation
     ? {
         ...data.translation,
@@ -254,16 +261,23 @@ const getOfficialChineseTranslationLines = (
 export const fetchLyrics = (info: SongInfo) => {
   if (activeSongInfo?.videoId !== info.videoId) return;
 
-  if (searchCache.has(info.videoId)) {
-    const cache = searchCache.get(info.videoId)!;
+  const policyKey = lyricsSearchPolicyKey();
+  const cached = searchCache.get(info.videoId);
+  if (cached && cached.policyKey === policyKey) {
+    const cache = cached;
 
     activateLyricsData(info.videoId, cache.data);
 
     return;
   }
 
+  if (cached) {
+    searchCache.delete(info.videoId);
+  }
+
   const cache: SearchCache = {
     state: 'loading',
+    policyKey,
     data: initialData(),
   };
 

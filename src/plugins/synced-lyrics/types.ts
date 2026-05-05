@@ -110,6 +110,7 @@ export type LineLyrics = {
   duration: number;
 
   text: string;
+  romanizedText?: string;
   status: LineLyricsStatus;
 };
 
@@ -122,6 +123,8 @@ export interface LyricResult {
 
   lyrics?: string;
   lines?: LineLyrics[];
+  romanizedLines?: string[];
+  inexact?: boolean;
   translation?: {
     lyrics?: string;
     lines?: LineLyrics[];

@@ -1,13 +1,18 @@
 // Adapted from https://github.com/GreasyFork/scripts/blob/master/scripts/548724-youtube-music-spotify-%E7%BD%91%E6%98%93%E4%BA%91%E6%AD%8C%E8%AF%8D%E6%98%BE%E7%A4%BA/code.user.js
 // MIT licensed.
 import CryptoJS from 'crypto-js';
-import { jaroWinkler } from '@skyra/jaro-winkler';
 import { z } from 'zod';
 
 import { LRC } from '../parsers/lrc';
 import { netFetch } from '../renderer';
+import { config } from '../renderer/renderer';
 
-import type { LyricProvider, LyricResult, SearchSongInfo } from '../types';
+import type {
+  LineLyrics,
+  LyricProvider,
+  LyricResult,
+  SearchSongInfo,
+} from '../types';
 
 const EAPI_AES_KEY = 'e82ckenh8dichen8';
 const EAPI_ENCODE_KEY = '3go8&$8*3*3h0k(2)2';
@@ -59,6 +64,16 @@ type SearchCandidate = {
   weight: number;
   withArtist: boolean;
 };
+type RankedSong = {
+  result: Song;
+  title: string;
+  titleScore: number;
+  artistScore: number;
+  durationDelta: number;
+  score: number;
+  ambiguousLatinTitle: boolean;
+  latinOnlyTitle: boolean;
+};
 
 const lyricPartSchema = z.object({ lyric: z.string().nullable().optional() });
 const lyricResponseSchema = z.object({
@@ -80,10 +95,19 @@ const FEAT_BLOCK_RE =
 const FEAT_TAIL_RE = /(?:^|[\s\u3000(（[])(?:feat|ft|featuring)\.?\s+.+$/i;
 const TITLE_DELIMITER_RE = /\s+[-–—]\s+|\s+[/|]\s+|[／｜│]|\s+:\s+|[：]/;
 const BRACKET_BLOCK_RE = /[([{（【［]([^)\]}】］）]+)[)\]}】］）]/g;
+const NETEASE_CREDIT_LINE_RE =
+  /^(?:作词|作詞|作曲|编曲|編曲|制作人|和声|和聲|混音|母带|母帶|录音|錄音|吉他|贝斯|貝斯|鼓|钢琴|鋼琴|键盘|鍵盤|Lyricist|Composer|Arranger|Producer|Mixing|Mastering|Vocal|Guitar|Bass|Drums)\s*[:：]/i;
+const JAPANESE_KANA_RE = /[\u3040-\u30ff]/;
+const HANGUL_RE = /[\uac00-\ud7af]/;
+const THAI_RE = /[\u0e00-\u0e7f]/;
+const BENGALI_RE = /[\u0980-\u09ff]/;
+const DEVANAGARI_RE = /[\u0900-\u097f]/;
 
 const normalizeLoose = (value: string) =>
   value
     .normalize('NFKC')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[＿_]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -94,8 +118,52 @@ const compact = (value: string) =>
 
 const hasJapaneseOrCjk = (value: string) => JAPANESE_OR_CJK_RE.test(value);
 
+const hasNonLatinRomanizableText = (value: string) =>
+  JAPANESE_KANA_RE.test(value) ||
+  HANGUL_RE.test(value) ||
+  THAI_RE.test(value) ||
+  BENGALI_RE.test(value) ||
+  DEVANAGARI_RE.test(value);
+
 const isLikelyArtistFragment = (value: string) =>
   VOCAL_ARTIST_FRAGMENT_RE.test(value);
+
+const levenshteinDistance = (left: string, right: string) => {
+  const a = Array.from(left);
+  const b = Array.from(right);
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  let current = Array.from({ length: b.length + 1 }, () => 0);
+
+  for (let i = 1; i <= a.length; i++) {
+    current[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + cost,
+      );
+    }
+
+    [previous, current] = [current, previous];
+  }
+
+  return previous[b.length] ?? 0;
+};
+
+const editSimilarity = (left: string, right: string) => {
+  const a = compact(left);
+  const b = compact(right);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const distanceRatio =
+    levenshteinDistance(a, b) / Math.max(a.length, b.length);
+  return Math.max(0, 1 - distanceRatio);
+};
 
 const similarity = (left: string, right: string) => {
   const a = compact(left);
@@ -105,7 +173,8 @@ const similarity = (left: string, right: string) => {
   if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) {
     return 0.94;
   }
-  return jaroWinkler(a, b);
+
+  return editSimilarity(left, right);
 };
 
 const uniqByCompact = <T extends string>(values: T[]): T[] => {
@@ -439,8 +508,20 @@ export class NetEase implements LyricProvider {
     return uniqByCompact(keywords).slice(0, 16);
   }
 
-  private scoreTitle(candidateTitle: string, candidates: SearchCandidate[]) {
+  private scoreTitle(
+    candidateTitle: string,
+    candidates: SearchCandidate[],
+    fallbackTitles: string[] = [],
+  ) {
     let best = { score: 0, title: '' };
+    for (const title of fallbackTitles) {
+      if (!title) continue;
+      const score = similarity(title, candidateTitle);
+      if (score > best.score) {
+        best = { score, title };
+      }
+    }
+
     for (const candidate of candidates) {
       const score = Math.min(
         1,
@@ -454,6 +535,8 @@ export class NetEase implements LyricProvider {
   }
 
   private scoreArtist(itemArtists: string[], artistNames: string[]) {
+    if (artistNames.length === 0) return 0.5;
+
     let best = 0;
     for (const left of itemArtists) {
       for (const right of artistNames) {
@@ -461,6 +544,216 @@ export class NetEase implements LyricProvider {
       }
     }
     return best;
+  }
+
+  private isAllowedStrictMatch(
+    item: RankedSong,
+    hasComparableDuration: boolean,
+    hasArtistNames: boolean,
+  ) {
+    if (item.titleScore < 0.72) return false;
+    if (hasComparableDuration && item.durationDelta > 25) return false;
+    if (
+      hasComparableDuration &&
+      item.durationDelta > 15 &&
+      item.titleScore < 0.9
+    ) {
+      return false;
+    }
+    if (item.artistScore < 0.35 && item.titleScore < 0.92) return false;
+    if (item.latinOnlyTitle && hasArtistNames && item.artistScore < 0.35) {
+      return false;
+    }
+    if (item.ambiguousLatinTitle && item.artistScore < 0.55) return false;
+    return item.score >= 1.55;
+  }
+
+  private isAllowedInexactMatch(
+    item: RankedSong,
+    hasComparableDuration: boolean,
+    hasArtistNames: boolean,
+  ) {
+    if (!(config()?.showLyricsEvenIfInexact ?? true)) return false;
+    if (item.titleScore < 0.62) return false;
+    if (hasComparableDuration && item.durationDelta > 45) return false;
+    if (item.titleScore < 0.8 && item.artistScore < 0.25) return false;
+    if (
+      item.latinOnlyTitle &&
+      hasArtistNames &&
+      item.artistScore < 0.25 &&
+      item.titleScore < 0.9
+    ) {
+      return false;
+    }
+    if (item.ambiguousLatinTitle && item.artistScore < 0.45) return false;
+    return item.score >= 1.25;
+  }
+
+  private millisToTime(millis: number) {
+    const totalMs = Math.max(0, Math.round(millis));
+    const minutes = Math.floor(totalMs / 60000);
+    const seconds = Math.floor((totalMs % 60000) / 1000);
+    const centiseconds = Math.floor((totalMs % 1000) / 10);
+    return `${minutes.toString().padStart(2, '0')}:${seconds
+      .toString()
+      .padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  }
+
+  private isNetEaseCreditLine(text: string, timeInMs: number) {
+    return timeInMs <= 12000 && NETEASE_CREDIT_LINE_RE.test(text.trim());
+  }
+
+  private normalizeLineDurations(lines: LineLyrics[]) {
+    const sorted = [...lines].sort((a, b) => a.timeInMs - b.timeInMs);
+    for (const [index, line] of sorted.entries()) {
+      const next = sorted[index + 1];
+      line.duration = next
+        ? Math.max(0, next.timeInMs - line.timeInMs)
+        : Number.isFinite(line.duration)
+          ? line.duration
+          : 3500;
+    }
+
+    const first = sorted[0];
+    if (first && first.timeInMs > 300) {
+      sorted.unshift({
+        time: '00:00.00',
+        timeInMs: 0,
+        duration: first.timeInMs,
+        text: '',
+        status: 'upcoming',
+      });
+    }
+
+    return sorted;
+  }
+
+  private parseNetEaseJsonLyrics(lyrics: string): LineLyrics[] {
+    if (!lyrics) return [];
+
+    const lines: LineLyrics[] = [];
+    for (const rawLine of lyrics.split('\n')) {
+      const raw = rawLine.trim();
+      if (!raw.startsWith('{')) continue;
+
+      try {
+        const parsed = z
+          .object({
+            t: z.coerce.number(),
+            c: z
+              .array(z.object({ tx: z.string().nullable().optional() }))
+              .default([]),
+          })
+          .safeParse(JSON.parse(raw));
+        if (!parsed.success) continue;
+
+        const timeInMs = parsed.data.t;
+        const text = parsed.data.c
+          .map((segment) => segment.tx ?? '')
+          .join('')
+          .trim();
+        if (this.isNetEaseCreditLine(text, timeInMs)) continue;
+
+        lines.push({
+          time: this.millisToTime(timeInMs),
+          timeInMs,
+          duration: Infinity,
+          text,
+          status: 'upcoming',
+        });
+      } catch {
+        // Ignore non-JSON metadata lines.
+      }
+    }
+
+    return this.normalizeLineDurations(lines);
+  }
+
+  private parseNetEaseLyrics(lyrics: string): LineLyrics[] {
+    const parsed = LRC.parse(stripMetadata(lyrics))
+      .lines.filter(
+        (line) => !this.isNetEaseCreditLine(line.text, line.timeInMs),
+      )
+      .map((line) => ({ ...line, status: 'upcoming' as const }));
+    if (parsed.some((line) => line.text.trim())) {
+      return this.normalizeLineDurations(parsed);
+    }
+
+    return this.parseNetEaseJsonLyrics(lyrics);
+  }
+
+  private plainLyricsFromLines(lines: LineLyrics[]) {
+    return lines
+      .map((line) => line.text.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private romanizedTextsFromLyrics(
+    romanizedLyrics: string,
+    sourceLines: LineLyrics[],
+  ) {
+    if (!romanizedLyrics || sourceLines.length === 0) return [];
+
+    const romanizedLines = LRC.parse(stripMetadata(romanizedLyrics)).lines;
+    if (romanizedLines.length === 0) return [];
+
+    const aligned = sourceLines.map(() => '');
+    if (romanizedLines.length === sourceLines.length) {
+      return romanizedLines.map((line) => line.text ?? '');
+    }
+
+    const used = new Set<number>();
+    for (const [sourceIndex, source] of sourceLines.entries()) {
+      if (!source.text.trim()) continue;
+
+      let bestIndex = -1;
+      let bestDelta = Number.POSITIVE_INFINITY;
+      for (const [romanIndex, roman] of romanizedLines.entries()) {
+        if (used.has(romanIndex) || !roman.text.trim()) continue;
+        const delta = Math.abs(roman.timeInMs - source.timeInMs);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          bestIndex = romanIndex;
+        }
+      }
+
+      if (bestIndex !== -1 && bestDelta <= 500) {
+        aligned[sourceIndex] = romanizedLines[bestIndex].text ?? '';
+        used.add(bestIndex);
+      }
+    }
+
+    return aligned;
+  }
+
+  private lineNeedsRomanization(text: string, sourceLooksJapanese: boolean) {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    if (sourceLooksJapanese && JAPANESE_OR_CJK_RE.test(trimmed)) return true;
+    return hasNonLatinRomanizableText(trimmed);
+  }
+
+  private hasCompleteRomanization(
+    sourceLines: LineLyrics[],
+    romanizedTexts: string[],
+  ) {
+    if (romanizedTexts.length !== sourceLines.length) return false;
+
+    const sourceLooksJapanese = sourceLines.some((line) =>
+      JAPANESE_KANA_RE.test(line.text),
+    );
+    let needsRomanization = false;
+    for (const [index, line] of sourceLines.entries()) {
+      if (!this.lineNeedsRomanization(line.text, sourceLooksJapanese)) {
+        continue;
+      }
+
+      needsRomanization = true;
+      if (!romanizedTexts[index]?.trim()) return false;
+    }
+
+    return needsRomanization;
   }
 
   async search({
@@ -495,12 +788,17 @@ export class NetEase implements LyricProvider {
         uniqueResults.set(result.resourceId, result);
       }
 
+      const fallbackTitles = [title, alternativeTitle || ''].filter(Boolean);
       const rankedResults = Array.from(uniqueResults.values())
         .map((result) => {
           const song = result.baseInfo.simpleSongData;
           const itemArtists = song.ar?.map((item) => item.name) ?? [];
           const normalizedSongTitle = stripNoise(song.name) || song.name;
-          const titleMatch = this.scoreTitle(normalizedSongTitle, candidates);
+          const titleMatch = this.scoreTitle(
+            normalizedSongTitle,
+            candidates,
+            fallbackTitles,
+          );
           const artistScore = this.scoreArtist(itemArtists, artistNames);
           const duration = song.dt / 1000;
           const durationDelta = hasComparableDuration
@@ -535,29 +833,6 @@ export class NetEase implements LyricProvider {
             latinOnlyTitle,
           };
         })
-        .filter((item) => {
-          if (item.titleScore < 0.72) return false;
-          if (hasComparableDuration && item.durationDelta > 25) return false;
-          if (
-            hasComparableDuration &&
-            item.durationDelta > 15 &&
-            item.titleScore < 0.9
-          ) {
-            return false;
-          }
-          if (item.artistScore < 0.35 && item.titleScore < 0.92) return false;
-          if (
-            item.latinOnlyTitle &&
-            artistNames.length > 0 &&
-            item.artistScore < 0.35
-          ) {
-            return false;
-          }
-          if (item.ambiguousLatinTitle && item.artistScore < 0.55) {
-            return false;
-          }
-          return item.score >= 1.65;
-        })
         .sort((a, b) => {
           if (Math.abs(b.score - a.score) > 0.08) {
             return b.score - a.score;
@@ -565,45 +840,88 @@ export class NetEase implements LyricProvider {
           return a.durationDelta - b.durationDelta;
         });
 
-      const closestResult = rankedResults[0]?.result;
+      const strictResults = rankedResults.filter((item) =>
+        this.isAllowedStrictMatch(
+          item,
+          hasComparableDuration,
+          artistNames.length > 0,
+        ),
+      );
+      const selected =
+        strictResults[0] ??
+        rankedResults.find((item) =>
+          this.isAllowedInexactMatch(
+            item,
+            hasComparableDuration,
+            artistNames.length > 0,
+          ),
+        );
+      const closestResult = selected?.result;
       if (!closestResult) {
         if (candidates.length) {
           console.debug('[synced-lyrics] NetEase no match', {
             title,
             artist,
+            showLyricsEvenIfInexact: config()?.showLyricsEvenIfInexact ?? true,
             candidates: candidates.map((candidate) => candidate.title),
+            best: rankedResults.slice(0, 5).map((item) => ({
+              title: item.title,
+              titleScore: item.titleScore,
+              artistScore: item.artistScore,
+              durationDelta: item.durationDelta,
+              score: item.score,
+            })),
           });
         }
         return null;
       }
 
       const lyric = await this.getLyric(closestResult.resourceId);
-      const lyrics = stripMetadata(lyric?.lrc?.lyric ?? '').trim();
-      if (!lyrics) return null;
+      const rawLyrics = lyric?.lrc?.lyric ?? '';
+      const lines = this.parseNetEaseLyrics(rawLyrics);
+      if (!lines.some((line) => line.text.trim())) return null;
 
-      const lines = LRC.parse(lyrics).lines.map((line) => ({
-        ...line,
-        status: 'upcoming' as const,
-      }));
-      const translatedLyrics = stripMetadata(lyric?.tlyric?.lyric ?? '').trim();
-      const translatedLines = translatedLyrics
-        ? LRC.parse(translatedLyrics).lines.map((line) => ({
-            ...line,
-            status: 'upcoming' as const,
-          }))
+      const lyrics = this.plainLyricsFromLines(lines);
+      const rawTranslatedLyrics = lyric?.tlyric?.lyric ?? '';
+      const translatedLines = rawTranslatedLyrics
+        ? this.parseNetEaseLyrics(rawTranslatedLyrics)
         : undefined;
+      const hasTranslatedTimedLines =
+        translatedLines?.some((line) => line.text.trim()) ?? false;
+      const romanizedLyrics = stripMetadata(lyric?.romalrc?.lyric ?? '').trim();
+      const romanizedLines = this.romanizedTextsFromLyrics(
+        romanizedLyrics,
+        lines,
+      );
+      const completeRomanizedLines = this.hasCompleteRomanization(
+        lines,
+        romanizedLines,
+      )
+        ? romanizedLines
+        : undefined;
+      const sourceLines = completeRomanizedLines
+        ? lines.map((line, index) => ({
+            ...line,
+            romanizedText: completeRomanizedLines[index] ?? '',
+          }))
+        : lines;
+      const translatedPlainLyrics = hasTranslatedTimedLines
+        ? this.plainLyricsFromLines(translatedLines ?? [])
+        : stripMetadata(rawTranslatedLyrics).trim();
 
       return {
         title: closestResult.baseInfo.simpleSongData.name,
         artists:
           closestResult.baseInfo.simpleSongData.ar?.map((item) => item.name) ??
           [],
-        lines,
+        lines: sourceLines,
         lyrics,
-        translation: translatedLyrics
+        romanizedLines: completeRomanizedLines,
+        inexact: selected && !strictResults.includes(selected),
+        translation: translatedPlainLyrics
           ? {
-              lyrics: translatedLyrics,
-              lines: translatedLines?.length ? translatedLines : undefined,
+              lyrics: translatedPlainLyrics,
+              lines: hasTranslatedTimedLines ? translatedLines : undefined,
               language: 'zh-CN',
               provider: this.name,
             }

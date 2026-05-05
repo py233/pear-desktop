@@ -1,4 +1,10 @@
-import { createEffect, createMemo, createSignal, Show } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  Show,
+} from 'solid-js';
 
 import {
   canonicalize,
@@ -9,10 +15,12 @@ import {
 import { config } from '../renderer';
 import { getLineTranslation } from '../translation-store';
 import { lyricsStore } from '../store';
+import { ProviderNames } from '../../providers';
 
 interface PlainLyricsProps {
   line: string;
   index: number;
+  romanizedLine?: string;
 }
 
 export const PlainLyrics = (props: PlainLyricsProps) => {
@@ -27,10 +35,30 @@ export const PlainLyrics = (props: PlainLyricsProps) => {
   });
 
   createEffect(() => {
-    if (!config()?.romanization) return;
+    if (!config()?.romanization) {
+      setRomanization('');
+      return;
+    }
+
+    const sourceRomanization = props.romanizedLine?.trim();
+    if (sourceRomanization) {
+      setRomanization(canonicalize(sourceRomanization));
+      return;
+    }
+
+    if (lyricsStore.provider === ProviderNames.NetEase) {
+      setRomanization('');
+      return;
+    }
 
     const input = canonicalize(text());
+    let stale = false;
+    onCleanup(() => {
+      stale = true;
+    });
+
     romanize(input).then((result) => {
+      if (stale) return;
       setRomanization(canonicalize(result));
     });
   });

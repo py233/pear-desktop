@@ -1,4 +1,11 @@
-import { createEffect, For, Show, createSignal, createMemo } from 'solid-js';
+import {
+  createEffect,
+  For,
+  Show,
+  createSignal,
+  createMemo,
+  onCleanup,
+} from 'solid-js';
 
 import { type VirtualizerHandle } from 'virtua/solid';
 
@@ -8,6 +15,7 @@ import { config, currentTime } from '../renderer';
 import { _ytAPI } from '..';
 import { getLineTranslation } from '../translation-store';
 import { lyricsStore } from '../store';
+import { ProviderNames } from '../../providers';
 
 import {
   canonicalize,
@@ -99,10 +107,30 @@ export const SyncedLine = (props: SyncedLineProps) => {
 
   const [romanization, setRomanization] = createSignal('');
   createEffect(() => {
+    if (!config()?.romanization) {
+      setRomanization('');
+      return;
+    }
+
+    const sourceRomanization = props.line.romanizedText?.trim();
+    if (sourceRomanization) {
+      setRomanization(canonicalize(sourceRomanization));
+      return;
+    }
+
+    if (lyricsStore.provider === ProviderNames.NetEase) {
+      setRomanization('');
+      return;
+    }
+
     const input = canonicalize(text());
-    if (!config()?.romanization) return;
+    let stale = false;
+    onCleanup(() => {
+      stale = true;
+    });
 
     romanize(input).then((result) => {
+      if (stale) return;
       setRomanization(canonicalize(result));
     });
   });

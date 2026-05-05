@@ -1,15 +1,6 @@
-import type { LyricProvider, LyricResult, SearchSongInfo } from '../types';
 import type { MusicPlayerAppElement } from '@/types/music-player-app-element';
 
-const headers = {
-  'Accept': 'application/json',
-  'Content-Type': 'application/json',
-};
-
-const client = {
-  clientName: '26',
-  clientVersion: '7.01.05',
-};
+import type { LyricProvider, LyricResult, SearchSongInfo } from '../types';
 
 export class YTMusic implements LyricProvider {
   public name = 'YTMusic';
@@ -20,7 +11,16 @@ export class YTMusic implements LyricProvider {
   public async search(
     { videoId, title, artist }: SearchSongInfo,
   ): Promise<LyricResult | null> {
-    const data = await this.fetchNext(videoId);
+    let data: NextData | null;
+    try {
+      data = await this.fetchNext(videoId);
+    } catch (error) {
+      console.debug('[synced-lyrics] YTMusic next fetch ignored', {
+        videoId,
+        error,
+      });
+      return null;
+    }
 
     const { tabs } =
       data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer
@@ -39,7 +39,19 @@ export class YTMusic implements LyricProvider {
     const { browseId } = lyricsTab?.tabRenderer?.endpoint?.browseEndpoint ?? {};
     if (!browseId) return null;
 
-    const { contents } = await this.fetchBrowse(browseId);
+    let browseData: BrowseData | null;
+    try {
+      browseData = await this.fetchBrowse(browseId);
+    } catch (error) {
+      console.debug('[synced-lyrics] YTMusic browse fetch ignored', {
+        videoId,
+        browseId,
+        error,
+      });
+      return null;
+    }
+
+    const { contents } = browseData ?? {};
     if (!contents) return null;
 
     /*
@@ -97,15 +109,14 @@ export class YTMusic implements LyricProvider {
 
   private millisToTime(millis: number) {
     const minutes = Math.floor(millis / 60000);
-    const seconds = Math.floor((millis - minutes * 60 * 1000) / 1000);
-    const remaining = (millis - minutes * 60 * 1000 - seconds * 1000) / 10;
+    const minuteMs = minutes * 60 * 1000;
+    const seconds = Math.floor((millis - minuteMs) / 1000);
+    const secondMs = seconds * 1000;
+    const remaining = (millis - minuteMs - secondMs) / 10;
     return `${minutes.toString().padStart(2, '0')}:${seconds
       .toString()
       .padStart(2, '0')}.${remaining.toString().padStart(2, '0')}`;
   }
-
-  // RATE LIMITED (2 req per sec)
-  private PROXIED_ENDPOINT = 'https://ytmbrowseproxy.zvz.be/';
 
   private fetchNext(videoId: string) {
     const app = document.querySelector<MusicPlayerAppElement>('ytmusic-app');
@@ -123,14 +134,18 @@ export class YTMusic implements LyricProvider {
   }
 
   private fetchBrowse(browseId: string) {
-    return fetch(this.PROXIED_ENDPOINT + 'browse?prettyPrint=false', {
-      headers,
-      method: 'POST',
-      body: JSON.stringify({
-        browseId,
-        context: { client },
-      }),
-    }).then((res) => res.json()) as Promise<BrowseData>;
+    const app = document.querySelector<MusicPlayerAppElement>('ytmusic-app');
+
+    if (!app) return null;
+
+    return app.networkManager.fetch<
+      BrowseData,
+      {
+        browseId: string;
+      }
+    >('/browse?prettyPrint=false', {
+      browseId,
+    });
   }
 }
 

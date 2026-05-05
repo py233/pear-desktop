@@ -22,7 +22,12 @@ on:
       release_tag:
         description: Release tag to publish or replace
         required: false
-        default: v3.11.4-personal.5
+        default: v3.11.4-personal.6
+        type: string
+      release_changelog:
+        description: Release changelog markdown. Use \n for multiple lines.
+        required: false
+        default: "- Maintenance release."
         type: string
 
 permissions:
@@ -234,6 +239,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_CHANGELOG: ${{ inputs.release_changelog }}
         run: |
           set -euo pipefail
 
@@ -266,27 +272,11 @@ jobs:
             echo
             echo "## Changelog"
             echo
-            echo "### Translation"
-            echo "- Added a current-song-only translation cache clear action. It removes cached translations for the active track from both memory and disk, then lets the selected provider/model translate that song again without wiping the rest of the cache."
-            echo "- Added whole-song Google Translate support with local caching, so repeated translation requests do not re-call the provider unnecessarily."
-            echo "- Kept translated lines visually tied to their source lyric line, including active/highlight state."
-            echo "- Skips translation when the lyric language already matches the target language."
-            echo "- Added a small footer below translated lyrics showing the translation source. API providers show the configured model, local CLI providers show their CLI name with auto model selection, and Google Translate/official lyric translations show their provider name."
-            echo
-            echo "### Lyrics Matching"
-            echo "- Improved NetEase matching for producer-prefixed titles and Vocaloid/voicebank fragments, especially Japanese songs where the official title is after the producer name."
-            echo "- Added support for LRC timestamps without fractional seconds, including full-width colon timestamps."
-            echo "- Uses NetEase official translated lyrics when available, while keeping fallback providers available."
-            echo
-            echo "### Interface"
-            echo "- Scoped synced-lyrics styles to the lyrics container so YouTube Music playlist and library text keeps its normal size."
-            echo "- Tuned lyrics font sizing for packaged builds."
-            echo "- Fixed translation provider menu persistence, including Google Translate selection."
-            echo
-            echo "### Packaging"
-            echo "- Windows includes both an offline Setup installer and a portable .exe build."
-            echo "- Added packaged runtime dependency checks to catch missing app.asar dependencies before release."
-            echo "- Releases are created only from the manual GitHub Actions workflow."
+            if [ -n "${RELEASE_CHANGELOG//[[:space:]]/}" ]; then
+              printf '%b\n' "$RELEASE_CHANGELOG"
+            else
+              echo "- Maintenance release."
+            fi
             echo
             echo "## Included Artifacts"
             for asset in "${ASSETS[@]}"; do
