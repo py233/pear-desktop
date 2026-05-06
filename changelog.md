@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. Dates are displayed in UTC.
 
+#### [v3.11.4-personal.7](https://github.com/py233/pear-desktop/compare/v3.11.4-personal.6...v3.11.4-personal.7)
+
+> 6 May 2026
+
+- Rebuilt the personal desktop release from the verified public standalone tree.
+- Confirmed NetEase synced lyrics matching remains aligned with the current public build.
+- Kept instrumental placeholder lyrics untouched so pure-music matches do not chase unrelated lyric candidates.
+
 #### [v3.11.5](https://github.com/ArjixWasTaken/pear-desktop/compare/v3.11.4...v3.11.5)
 
 - chore(deps): update dependency ts-morph to v28 [`#4423`](https://github.com/ArjixWasTaken/pear-desktop/pull/4423)

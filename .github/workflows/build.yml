@@ -22,12 +22,12 @@ on:
       release_tag:
         description: Release tag to publish or replace
         required: false
-        default: v3.11.4-personal.6
+        default: v3.11.4-personal.7
         type: string
       release_changelog:
         description: Release changelog markdown. Use \n for multiple lines.
         required: false
-        default: "- Maintenance release."
+        default: "- Rebuilt the personal desktop release from the verified public standalone tree.\\n- Confirmed NetEase synced lyrics matching remains aligned with the current public build.\\n- Kept instrumental placeholder lyrics untouched so pure-music matches do not chase unrelated lyric candidates."
         type: string
 
 permissions:
