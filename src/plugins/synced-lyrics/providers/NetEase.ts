@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { LRC } from '../parsers/lrc';
 import { netFetch } from '../renderer';
+import { translationDebug } from '../renderer/debug';
 import { config } from '../renderer/renderer';
 
 import type {
@@ -74,6 +75,13 @@ type RankedSong = {
   ambiguousLatinTitle: boolean;
   latinOnlyTitle: boolean;
 };
+type CandidateMatch = RankedSong & { strict: boolean };
+type SearchSongsResult = {
+  keyword: string;
+  rawCount: number;
+  songs: Song[];
+  error: Error | null;
+};
 
 const lyricPartSchema = z.object({ lyric: z.string().nullable().optional() });
 const lyricResponseSchema = z.object({
@@ -93,6 +101,10 @@ const VOCAL_ARTIST_FRAGMENT_RE =
 const FEAT_BLOCK_RE =
   /[\s\u3000]*[([{（【［][^)\]}】］）]*(?:feat|ft|featuring)\.?\s+[^)\]}】］）]*[)\]}】］）]/gi;
 const FEAT_TAIL_RE = /(?:^|[\s\u3000(（[])(?:feat|ft|featuring)\.?\s+.+$/i;
+const FEATURED_ARTIST_BLOCK_RE =
+  /[([{（【［][^)\]}】］）]*(?:feat|ft|featuring)\.?\s+([^)\]}】］）]+)[)\]}】］）]/gi;
+const FEATURED_ARTIST_TAIL_RE =
+  /(?:^|[\s\u3000(（[])(?:feat|ft|featuring)\.?\s+(.+)$/i;
 const TITLE_DELIMITER_RE = /\s+[-–—]\s+|\s+[/|]\s+|[／｜│]|\s+:\s+|[：]/;
 const BRACKET_BLOCK_RE = /[([{（【［]([^)\]}】］）]+)[)\]}】］）]/g;
 const NETEASE_CREDIT_LINE_RE =
@@ -115,6 +127,25 @@ const normalizeLoose = (value: string) =>
 
 const compact = (value: string) =>
   normalizeLoose(value).replace(/[^\p{L}\p{N}]+/gu, '');
+
+const debugNetEase = (message: string, data?: unknown) => {
+  translationDebug(`NetEase ${message}`, data);
+};
+
+const toError = (error: unknown, fallbackMessage: string) => {
+  if (error instanceof Error) return error;
+  if (typeof error === 'string' && error.trim()) return new Error(error);
+  return new Error(fallbackMessage);
+};
+
+const searchTextKey = (value: string) => normalizeLoose(value);
+
+const stripSearchPunctuation = (value: string) =>
+  value
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const hasJapaneseOrCjk = (value: string) => JAPANESE_OR_CJK_RE.test(value);
 
@@ -182,6 +213,18 @@ const uniqByCompact = <T extends string>(values: T[]): T[] => {
   const output: T[] = [];
   for (const value of values) {
     const key = compact(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(value);
+  }
+  return output;
+};
+
+const uniqBySearchText = <T extends string>(values: T[]): T[] => {
+  const seen = new Set<string>();
+  const output: T[] = [];
+  for (const value of values) {
+    const key = searchTextKey(value);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     output.push(value);
@@ -332,7 +375,10 @@ export class NetEase implements LyricProvider {
     return json;
   }
 
-  private async searchSongs(keyword: string, limit = 10): Promise<Song[]> {
+  private async searchSongs(
+    keyword: string,
+    limit = 10,
+  ): Promise<SearchSongsResult> {
     try {
       const response = await this.eapi(
         '/search/song/list/page',
@@ -349,25 +395,40 @@ export class NetEase implements LyricProvider {
       );
       const parsed = searchResponseSchema.safeParse(response);
       if (!parsed.success) {
-        console.debug('[synced-lyrics] NetEase search response ignored', {
-          keyword,
-          error: parsed.error.message,
-        });
-        return [];
+        throw new Error(
+          `NetEase search response schema mismatch: ${parsed.error.message}`,
+        );
       }
 
-      return [
+      const rawItems = [
         ...(parsed.data.data?.resources ?? []),
         ...(parsed.data.result?.songs ?? []),
-      ]
+      ];
+      const songs = rawItems
         .map(parseSong)
         .filter((song): song is Song => Boolean(song));
-    } catch (error) {
-      console.debug('[synced-lyrics] NetEase search failed', {
+      debugNetEase('keyword result', {
         keyword,
-        error,
+        rawCount: rawItems.length,
+        parsedCount: songs.length,
+        first: songs.slice(0, 5).map((song) => ({
+          id: song.resourceId,
+          title: song.baseInfo.simpleSongData.name,
+          artists:
+            song.baseInfo.simpleSongData.ar?.map((item) => item.name) ?? [],
+          duration: Math.round(song.baseInfo.simpleSongData.dt / 1000),
+        })),
       });
-      return [];
+
+      return { keyword, rawCount: rawItems.length, songs, error: null };
+    } catch (error) {
+      const normalizedError = toError(error, 'Unknown NetEase search error');
+      debugNetEase('keyword failed', {
+        keyword,
+        message: normalizedError.message,
+        stack: normalizedError.stack,
+      });
+      return { keyword, rawCount: 0, songs: [], error: normalizedError };
     }
   }
 
@@ -398,6 +459,83 @@ export class NetEase implements LyricProvider {
         )
         .filter(Boolean),
     );
+  }
+
+  private filterArtistTagValues(
+    title: string,
+    alternativeTitle: string,
+    album: string | null | undefined,
+    artist: string,
+    tags: string[] = [],
+  ) {
+    const primaryArtistNames = this.splitArtistNames(artist);
+    const songTitleValues = [title, alternativeTitle].filter(Boolean);
+    const albumTitleValue =
+      album && songTitleValues.some((value) => similarity(album, value) >= 0.92)
+        ? album
+        : '';
+    const titleKeys = uniqByCompact(
+      [...songTitleValues, albumTitleValue]
+        .flatMap((value) => [value, stripNoise(value)])
+        .filter(Boolean),
+    ).map(compact);
+    const ignored: string[] = [];
+    const titleTags: string[] = [];
+    let seenTitleTag = false;
+    const artistTags = tags.filter((tag) => {
+      const tagKeys = [tag, stripNoise(tag)].map(compact).filter(Boolean);
+      const titleLike = tagKeys.some((tagKey) =>
+        titleKeys.some((titleKey) => tagKey === titleKey),
+      );
+      const localizedTitleLike =
+        seenTitleTag &&
+        hasNonLatinRomanizableText(tag) &&
+        !this.isArtistLike(tag, primaryArtistNames) &&
+        !isLikelyArtistFragment(tag);
+      if (titleLike || localizedTitleLike) {
+        ignored.push(tag);
+        titleTags.push(tag);
+        seenTitleTag ||= titleLike;
+        return false;
+      }
+
+      return true;
+    });
+
+    return { artistTags, titleTags: uniqByCompact(titleTags), ignored };
+  }
+
+  private featuredArtistNamesFromTitles(
+    ...titles: (string | undefined)[]
+  ): string[] {
+    const featured: string[] = [];
+    for (const title of titles) {
+      if (!title) continue;
+
+      for (const match of title.matchAll(FEATURED_ARTIST_BLOCK_RE)) {
+        if (match[1]) featured.push(match[1]);
+      }
+
+      const tail = title.match(FEATURED_ARTIST_TAIL_RE)?.[1];
+      if (tail) featured.push(tail);
+    }
+
+    return this.splitArtistNames(...featured);
+  }
+
+  private buildSearchArtistNames(
+    artistNames: string[],
+    featuredArtistNames: string[],
+  ) {
+    const primaryArtists = artistNames.slice(0, 2);
+    const aliases = primaryArtists.flatMap((artistName) => {
+      const withoutPunctuation = stripSearchPunctuation(artistName);
+      return withoutPunctuation && withoutPunctuation !== artistName
+        ? [artistName, withoutPunctuation]
+        : [artistName];
+    });
+
+    return uniqBySearchText([...aliases, ...featuredArtistNames]).slice(0, 4);
   }
 
   private isArtistLike(fragment: string, artistNames: string[]): boolean {
@@ -459,9 +597,10 @@ export class NetEase implements LyricProvider {
     title: string,
     alternativeTitle: string,
     artistNames: string[],
+    titleTags: string[] = [],
   ): SearchCandidate[] {
     const sourceTitles = uniqByCompact(
-      [title, alternativeTitle].filter(Boolean),
+      [title, alternativeTitle, ...titleTags].filter(Boolean),
     );
     const candidates: SearchCandidate[] = [];
     const add = (candidateTitle: string, weight: number, withArtist = true) => {
@@ -495,17 +634,22 @@ export class NetEase implements LyricProvider {
   private buildSearchKeywords(
     candidates: SearchCandidate[],
     artistNames: string[],
+    featuredArtistNames: string[] = [],
   ) {
     const keywords: string[] = [];
+    const searchArtistNames = this.buildSearchArtistNames(
+      artistNames,
+      featuredArtistNames,
+    );
     for (const candidate of candidates) {
       keywords.push(candidate.title);
       if (!candidate.withArtist) continue;
-      for (const artist of artistNames.slice(0, 2)) {
+      for (const artist of searchArtistNames) {
         keywords.push(`${candidate.title} ${artist}`);
       }
     }
 
-    return uniqByCompact(keywords).slice(0, 16);
+    return uniqBySearchText(keywords).slice(0, 16);
   }
 
   private scoreTitle(
@@ -760,6 +904,7 @@ export class NetEase implements LyricProvider {
     title,
     alternativeTitle,
     artist,
+    album,
     songDuration,
     tags,
   }: SearchSongInfo): Promise<LyricResult | null> {
@@ -768,27 +913,100 @@ export class NetEase implements LyricProvider {
         await this.register();
       }
 
-      const artistNames = this.splitArtistNames(artist, ...(tags ?? []));
+      const { artistTags, titleTags, ignored } = this.filterArtistTagValues(
+        title,
+        alternativeTitle || '',
+        album,
+        artist,
+        tags ?? [],
+      );
+      const artistNames = this.splitArtistNames(artist, ...artistTags);
+      const featuredArtistNames = this.featuredArtistNamesFromTitles(
+        title,
+        alternativeTitle || '',
+      );
+      debugNetEase('input', {
+        title,
+        alternativeTitle,
+        artist,
+        album,
+        songDuration,
+        tags: tags ?? [],
+        artistTags,
+        titleTags,
+        ignoredArtistTags: ignored,
+        artistNames,
+        featuredArtistNames,
+        showLyricsEvenIfInexact: config()?.showLyricsEvenIfInexact ?? true,
+      });
+
       const candidates = this.buildTitleCandidates(
         title,
         alternativeTitle || '',
         artistNames,
+        titleTags,
       );
-      if (candidates.length === 0) return null;
+      if (candidates.length === 0) {
+        debugNetEase('stopped: no title candidates', {
+          title,
+          alternativeTitle,
+          artist,
+          artistNames,
+        });
+        return null;
+      }
 
-      const keywords = this.buildSearchKeywords(candidates, artistNames);
+      const keywords = this.buildSearchKeywords(
+        candidates,
+        artistNames,
+        featuredArtistNames,
+      );
+      debugNetEase('prepared search', {
+        candidates,
+        keywords,
+      });
       const hasComparableDuration =
         Number.isFinite(songDuration) && songDuration > 0;
       const results = await Promise.all(
         keywords.map((keyword) => this.searchSongs(keyword, 10)),
       );
+      const failedResults = results.filter((result) => result.error);
+      if (failedResults.length === results.length) {
+        const error =
+          failedResults[0]?.error ?? new Error('Unknown NetEase search error');
+        throw new Error(
+          `NetEase search failed for all ${keywords.length} keywords: ${error.message}`,
+        );
+      }
+
+      if (failedResults.length) {
+        debugNetEase('partial search failure', {
+          failed: failedResults.map((result) => result.keyword),
+          succeeded: results
+            .filter((result) => !result.error)
+            .map((result) => result.keyword),
+        });
+      }
+      debugNetEase('search summary', {
+        keywordCount: keywords.length,
+        failedKeywordCount: failedResults.length,
+        rawCount: results.reduce((sum, result) => sum + result.rawCount, 0),
+        parsedCount: results.reduce(
+          (sum, result) => sum + result.songs.length,
+          0,
+        ),
+      });
 
       const uniqueResults = new Map<number, Song>();
-      for (const result of results.flat()) {
+      for (const result of results.flatMap((result) => result.songs)) {
         uniqueResults.set(result.resourceId, result);
       }
 
       const fallbackTitles = [title, alternativeTitle || ''].filter(Boolean);
+      const scoreArtistNames = uniqBySearchText([
+        ...artistNames,
+        ...featuredArtistNames,
+      ]);
       const rankedResults = Array.from(uniqueResults.values())
         .map((result) => {
           const song = result.baseInfo.simpleSongData;
@@ -799,7 +1017,7 @@ export class NetEase implements LyricProvider {
             candidates,
             fallbackTitles,
           );
-          const artistScore = this.scoreArtist(itemArtists, artistNames);
+          const artistScore = this.scoreArtist(itemArtists, scoreArtistNames);
           const duration = song.dt / 1000;
           const durationDelta = hasComparableDuration
             ? Math.abs(duration - songDuration)
@@ -839,30 +1057,60 @@ export class NetEase implements LyricProvider {
           }
           return a.durationDelta - b.durationDelta;
         });
+      debugNetEase('ranked results', {
+        uniqueCount: uniqueResults.size,
+        hasComparableDuration,
+        scoreArtistNames,
+        top: rankedResults.slice(0, 10).map((item) => ({
+          id: item.result.resourceId,
+          title: item.title,
+          artists:
+            item.result.baseInfo.simpleSongData.ar?.map(
+              (artist) => artist.name,
+            ) ?? [],
+          titleScore: Number(item.titleScore.toFixed(3)),
+          artistScore: Number(item.artistScore.toFixed(3)),
+          durationDelta: Number(item.durationDelta.toFixed(3)),
+          score: Number(item.score.toFixed(3)),
+          ambiguousLatinTitle: item.ambiguousLatinTitle,
+          latinOnlyTitle: item.latinOnlyTitle,
+        })),
+      });
 
       const strictResults = rankedResults.filter((item) =>
         this.isAllowedStrictMatch(
           item,
           hasComparableDuration,
-          artistNames.length > 0,
+          scoreArtistNames.length > 0,
         ),
       );
-      const selected =
-        strictResults[0] ??
-        rankedResults.find((item) =>
+      const strictIds = new Set(
+        strictResults.map((item) => item.result.resourceId),
+      );
+      const inexactResults = rankedResults.filter(
+        (item) =>
+          !strictIds.has(item.result.resourceId) &&
           this.isAllowedInexactMatch(
             item,
             hasComparableDuration,
-            artistNames.length > 0,
+            scoreArtistNames.length > 0,
           ),
-        );
-      const closestResult = selected?.result;
-      if (!closestResult) {
+      );
+      const matches: CandidateMatch[] = [
+        ...strictResults.map((item) => ({ ...item, strict: true })),
+        ...inexactResults.map((item) => ({ ...item, strict: false })),
+      ];
+      if (matches.length === 0) {
         if (candidates.length) {
-          console.debug('[synced-lyrics] NetEase no match', {
+          debugNetEase('no match', {
             title,
             artist,
             showLyricsEvenIfInexact: config()?.showLyricsEvenIfInexact ?? true,
+            keywords,
+            failedKeywordCount: failedResults.length,
+            artistNames,
+            featuredArtistNames,
+            scoreArtistNames,
             candidates: candidates.map((candidate) => candidate.title),
             best: rankedResults.slice(0, 5).map((item) => ({
               title: item.title,
@@ -876,64 +1124,136 @@ export class NetEase implements LyricProvider {
         return null;
       }
 
-      const lyric = await this.getLyric(closestResult.resourceId);
-      const rawLyrics = lyric?.lrc?.lyric ?? '';
-      const lines = this.parseNetEaseLyrics(rawLyrics);
-      if (!lines.some((line) => line.text.trim())) return null;
+      debugNetEase('candidate queue', {
+        count: matches.length,
+        top: matches.slice(0, 8).map((item) => ({
+          id: item.result.resourceId,
+          title: item.title,
+          artists:
+            item.result.baseInfo.simpleSongData.ar?.map(
+              (artist) => artist.name,
+            ) ?? [],
+          strict: item.strict,
+          titleScore: Number(item.titleScore.toFixed(3)),
+          artistScore: Number(item.artistScore.toFixed(3)),
+          durationDelta: Number(item.durationDelta.toFixed(3)),
+          score: Number(item.score.toFixed(3)),
+        })),
+      });
 
-      const lyrics = this.plainLyricsFromLines(lines);
-      const rawTranslatedLyrics = lyric?.tlyric?.lyric ?? '';
-      const translatedLines = rawTranslatedLyrics
-        ? this.parseNetEaseLyrics(rawTranslatedLyrics)
-        : undefined;
-      const hasTranslatedTimedLines =
-        translatedLines?.some((line) => line.text.trim()) ?? false;
-      const romanizedLyrics = stripMetadata(lyric?.romalrc?.lyric ?? '').trim();
-      const romanizedLines = this.romanizedTextsFromLyrics(
-        romanizedLyrics,
-        lines,
-      );
-      const completeRomanizedLines = this.hasCompleteRomanization(
-        lines,
-        romanizedLines,
-      )
-        ? romanizedLines
-        : undefined;
-      const sourceLines = completeRomanizedLines
-        ? lines.map((line, index) => ({
-            ...line,
-            romanizedText: completeRomanizedLines[index] ?? '',
-          }))
-        : lines;
-      const translatedPlainLyrics = hasTranslatedTimedLines
-        ? this.plainLyricsFromLines(translatedLines ?? [])
-        : stripMetadata(rawTranslatedLyrics).trim();
+      for (const selected of matches) {
+        const closestResult = selected.result;
+        const lyric = await this.getLyric(closestResult.resourceId);
+        const rawLyrics = lyric?.lrc?.lyric ?? '';
+        const lines = this.parseNetEaseLyrics(rawLyrics);
+        debugNetEase('selected song', {
+          id: closestResult.resourceId,
+          title: closestResult.baseInfo.simpleSongData.name,
+          artists:
+            closestResult.baseInfo.simpleSongData.ar?.map(
+              (item) => item.name,
+            ) ?? [],
+          duration: Math.round(closestResult.baseInfo.simpleSongData.dt / 1000),
+          strict: selected.strict,
+          rawLyricsLength: rawLyrics.length,
+          parsedLineCount: lines.length,
+          parsedTextLineCount: lines.filter((line) => line.text.trim()).length,
+          hasTranslation: Boolean(lyric?.tlyric?.lyric?.trim()),
+          hasRomanization: Boolean(lyric?.romalrc?.lyric?.trim()),
+        });
+        if (!lines.some((line) => line.text.trim())) {
+          debugNetEase('skipped: selected lyric has no text', {
+            id: closestResult.resourceId,
+            title: closestResult.baseInfo.simpleSongData.name,
+            rawLyricsLength: rawLyrics.length,
+            rawLyricsPreview: rawLyrics.slice(0, 300),
+          });
+          continue;
+        }
 
-      return {
-        title: closestResult.baseInfo.simpleSongData.name,
-        artists:
-          closestResult.baseInfo.simpleSongData.ar?.map((item) => item.name) ??
-          [],
-        lines: sourceLines,
-        lyrics,
-        romanizedLines: completeRomanizedLines,
-        inexact: selected && !strictResults.includes(selected),
-        translation: translatedPlainLyrics
-          ? {
-              lyrics: translatedPlainLyrics,
-              lines: hasTranslatedTimedLines ? translatedLines : undefined,
-              language: 'zh-CN',
-              provider: this.name,
-            }
-          : undefined,
-      };
-    } catch (error) {
-      console.debug('[synced-lyrics] NetEase search ignored', {
+        const lyrics = this.plainLyricsFromLines(lines);
+        const rawTranslatedLyrics = lyric?.tlyric?.lyric ?? '';
+        const translatedLines = rawTranslatedLyrics
+          ? this.parseNetEaseLyrics(rawTranslatedLyrics)
+          : undefined;
+        const hasTranslatedTimedLines =
+          translatedLines?.some((line) => line.text.trim()) ?? false;
+        const romanizedLyrics = stripMetadata(
+          lyric?.romalrc?.lyric ?? '',
+        ).trim();
+        const romanizedLines = this.romanizedTextsFromLyrics(
+          romanizedLyrics,
+          lines,
+        );
+        const completeRomanizedLines = this.hasCompleteRomanization(
+          lines,
+          romanizedLines,
+        )
+          ? romanizedLines
+          : undefined;
+        const sourceLines = completeRomanizedLines
+          ? lines.map((line, index) => ({
+              ...line,
+              romanizedText: completeRomanizedLines[index] ?? '',
+            }))
+          : lines;
+        const translatedPlainLyrics = hasTranslatedTimedLines
+          ? this.plainLyricsFromLines(translatedLines ?? [])
+          : stripMetadata(rawTranslatedLyrics).trim();
+        debugNetEase('match', {
+          title: closestResult.baseInfo.simpleSongData.name,
+          artists:
+            closestResult.baseInfo.simpleSongData.ar?.map(
+              (item) => item.name,
+            ) ?? [],
+          inexact: !selected.strict,
+          lines: sourceLines.length,
+          failedKeywordCount: failedResults.length,
+        });
+
+        return {
+          title: closestResult.baseInfo.simpleSongData.name,
+          artists:
+            closestResult.baseInfo.simpleSongData.ar?.map(
+              (item) => item.name,
+            ) ?? [],
+          lines: sourceLines,
+          lyrics,
+          romanizedLines: completeRomanizedLines,
+          inexact: !selected.strict,
+          translation: translatedPlainLyrics
+            ? {
+                lyrics: translatedPlainLyrics,
+                lines: hasTranslatedTimedLines ? translatedLines : undefined,
+                language: 'zh-CN',
+                provider: this.name,
+              }
+            : undefined,
+        };
+      }
+
+      debugNetEase('stopped: all matched lyrics have no text', {
         title,
         artist,
-        error,
+        tried: matches.map((item) => ({
+          id: item.result.resourceId,
+          title: item.title,
+          artists:
+            item.result.baseInfo.simpleSongData.ar?.map(
+              (artist) => artist.name,
+            ) ?? [],
+          strict: item.strict,
+        })),
       });
       return null;
+    } catch (error) {
+      debugNetEase('search failed fatally', {
+        title,
+        artist,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw toError(error, 'Unknown NetEase search error');
     }
   }
 }

@@ -164,6 +164,24 @@ const handleData = async (
 
     if (songInfo.imageSrc) songInfo.image = await getImage(songInfo.imageSrc);
 
+    console.info('[synced-lyrics] song-info extracted', {
+      videoId: songInfo.videoId,
+      title: songInfo.title,
+      alternativeTitle: songInfo.alternativeTitle,
+      artist: songInfo.artist,
+      author: videoDetails.author,
+      pageOwner: microformat?.pageOwnerDetails?.name,
+      songDuration: songInfo.songDuration,
+      mediaType: songInfo.mediaType,
+      album: songInfo.album,
+      tags: songInfo.tags,
+      microformatTitle: microformat?.title,
+      linkAlternates: microformat?.linkAlternates?.map((link) => ({
+        title: link.title,
+        alternateType: link.alternateType,
+      })),
+    });
+
     win.webContents.send('peard:update-song-info', songInfo);
   }
 

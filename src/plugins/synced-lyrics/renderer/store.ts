@@ -101,6 +101,20 @@ const getLyricLineTexts = (data?: LyricResult | null): string[] => {
   return data.lyrics ? splitPlainLyrics(data.lyrics) : [];
 };
 
+const describeLyricResult = (data?: LyricResult | null) => ({
+  hasText: hasLyricText(data),
+  title: data?.title ?? '',
+  artists: data?.artists ?? [],
+  lineCount: data?.lines?.length ?? 0,
+  textLineCount: data?.lines?.filter((line) => line.text.trim()).length ?? 0,
+  plainLength: data?.lyrics?.length ?? 0,
+  romanizedCount:
+    data?.romanizedLines?.filter((line) => line.trim()).length ?? 0,
+  translatedLineCount: data?.translation?.lines?.length ?? 0,
+  translatedPlainLength: data?.translation?.lyrics?.length ?? 0,
+  inexact: Boolean(data?.inexact),
+});
+
 const cloneLyricResult = (data: LyricResult): LyricResult => ({
   ...data,
   artists: [...data.artists],
@@ -143,6 +157,29 @@ const isStillActiveVideo = (videoId: string): boolean => {
     activeSongInfo?.videoId === videoId &&
     untrack(() => lyricsStore.videoId) === videoId
   );
+};
+
+const updateSearchCacheProvider = (
+  videoId: string,
+  provider: ProviderName,
+  state: ProviderState,
+) => {
+  const cached = searchCache.get(videoId);
+  if (!cached || cached.policyKey !== lyricsSearchPolicyKey()) return;
+
+  cached.data[provider] = cloneProviderState(state);
+  cached.state = providerNames.some(
+    (providerName) => cached.data[providerName].state === 'fetching',
+  )
+    ? 'loading'
+    : 'done';
+  searchCache.set(videoId, cached);
+};
+
+const toError = (error: unknown, fallbackMessage: string) => {
+  if (error instanceof Error) return error;
+  if (typeof error === 'string' && error.trim()) return new Error(error);
+  return new Error(fallbackMessage);
 };
 
 const alignSyncedTranslations = (
@@ -301,6 +338,12 @@ export const fetchLyrics = (info: SongInfo) => {
         .then((res) => {
           pCache.state = 'done';
           pCache.data = res;
+          translationDebug('lyrics provider result', {
+            videoId: info.videoId,
+            provider: providerName,
+            state: 'done',
+            result: describeLyricResult(res),
+          });
 
           if (isStillActiveVideo(info.videoId)) {
             setLyricsStore('lyrics', (old) => {
@@ -320,6 +363,12 @@ export const fetchLyrics = (info: SongInfo) => {
           pCache.error = error;
 
           console.error(error);
+          translationDebug('lyrics provider error', {
+            videoId: info.videoId,
+            provider: providerName,
+            message: error.message,
+            stack: error.stack,
+          });
 
           if (isStillActiveVideo(info.videoId)) {
             setLyricsStore('lyrics', (old) => {
@@ -347,6 +396,16 @@ export const retrySearch = (provider: ProviderName, info: SongInfo) => {
     data: null,
     error: null,
   };
+  translationDebug('lyrics provider retry', {
+    videoId: info.videoId,
+    provider,
+    title: info.title,
+    alternativeTitle: info.alternativeTitle,
+    artist: info.artist,
+    songDuration: info.songDuration,
+    tags: info.tags ?? [],
+  });
+  updateSearchCacheProvider(info.videoId, provider, pCache);
 
   if (lyricsStore.videoId !== info.videoId) {
     clearCurrentTranslation();
@@ -363,6 +422,17 @@ export const retrySearch = (provider: ProviderName, info: SongInfo) => {
     .search(info)
     .then((res) => {
       if (!isStillActiveVideo(info.videoId)) return;
+      translationDebug('lyrics provider retry result', {
+        videoId: info.videoId,
+        provider,
+        state: 'done',
+        result: describeLyricResult(res),
+      });
+      updateSearchCacheProvider(info.videoId, provider, {
+        state: 'done',
+        data: res,
+        error: null,
+      });
       setLyricsStore('lyrics', (old) => {
         return {
           ...old,
@@ -372,10 +442,22 @@ export const retrySearch = (provider: ProviderName, info: SongInfo) => {
     })
     .catch((error) => {
       if (!isStillActiveVideo(info.videoId)) return;
+      const normalizedError = toError(error, 'Lyrics provider retry failed');
+      translationDebug('lyrics provider retry error', {
+        videoId: info.videoId,
+        provider,
+        message: normalizedError.message,
+        stack: normalizedError.stack,
+      });
+      updateSearchCacheProvider(info.videoId, provider, {
+        state: 'error',
+        data: null,
+        error: normalizedError,
+      });
       setLyricsStore('lyrics', (old) => {
         return {
           ...old,
-          [provider]: { state: 'error', data: null, error },
+          [provider]: { state: 'error', data: null, error: normalizedError },
         };
       });
     });
@@ -538,6 +620,10 @@ export const refreshCurrentLyrics = (reason: string, info = getSongInfo()) => {
     reason,
     videoId: info.videoId,
     title: info.title,
+    alternativeTitle: info.alternativeTitle,
+    artist: info.artist,
+    songDuration: info.songDuration,
+    tags: info.tags ?? [],
   });
   fetchLyrics(info);
   translateCurrentLyrics(reason, info);

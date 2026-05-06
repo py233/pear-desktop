@@ -11,6 +11,7 @@ import type { RendererContext } from '@/types/contexts';
 import type { MusicPlayer } from '@/types/music-player';
 import type { SongInfo } from '@/providers/song-info';
 import type {
+  LyricResult,
   SyncedLyricsPluginConfig,
   TranslationProviderName,
   TranslationProviderSettings,
@@ -30,13 +31,17 @@ export interface TranslateInvokeArgs {
   settings: TranslationProviderSettings[TranslationProviderName];
 }
 
-export let translateInvoke: (
-  args: TranslateInvokeArgs,
-) => Promise<{
+export let translateInvoke: (args: TranslateInvokeArgs) => Promise<{
   lines: string[];
   fromCache: boolean;
   error?: string;
 }>;
+
+type SyncedLyricsDebugWindow = Window & {
+  __ytmdDebugNetEase?: (
+    overrides?: Partial<SongInfo>,
+  ) => Promise<LyricResult | null>;
+};
 
 export const renderer = createRenderer<
   {
@@ -110,6 +115,40 @@ export const renderer = createRenderer<
     });
 
     setConfig(await ctx.getConfig());
+    (window as SyncedLyricsDebugWindow).__ytmdDebugNetEase = async (
+      overrides = {},
+    ) => {
+      const [{ getSongInfo }, { ProviderNames }, { providers }] =
+        await Promise.all([
+          import('@/providers/song-info-front'),
+          import('../providers'),
+          import('../providers/renderer'),
+        ]);
+      const info = {
+        ...getSongInfo(),
+        ...overrides,
+      };
+      console.info('[synced-lyrics] manual NetEase debug input', {
+        videoId: info.videoId,
+        title: info.title,
+        alternativeTitle: info.alternativeTitle,
+        artist: info.artist,
+        songDuration: info.songDuration,
+        tags: info.tags ?? [],
+      });
+      const result = await providers[ProviderNames.NetEase].search(info);
+      console.info('[synced-lyrics] manual NetEase debug result', {
+        hasResult: Boolean(result),
+        title: result?.title,
+        artists: result?.artists,
+        lineCount: result?.lines?.length ?? 0,
+        textLineCount:
+          result?.lines?.filter((line) => line.text.trim()).length ?? 0,
+        plainLength: result?.lyrics?.length ?? 0,
+        inexact: result?.inexact,
+      });
+      return result;
+    };
     refreshCurrentLyrics('renderer-start');
     setTimeout(() => refreshCurrentLyrics('renderer-start-delayed'), 1500);
 
@@ -130,16 +169,17 @@ export const renderer = createRenderer<
         return;
       }
 
-      const diskEntries = await ctx.ipc
+      const diskEntries = (await ctx.ipc
         .invoke('synced-lyrics:translate-clear-video-cache', videoId)
         .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           translationDebug('current translation disk cache clear failed', {
             videoId,
             message,
           });
           return 0;
-        });
+        })) as number;
       const memoryEntries = clearTranslationMemoryCacheForVideo(videoId);
       translationDebug('current translation cache cleared', {
         videoId,
