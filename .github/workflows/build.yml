@@ -118,6 +118,7 @@ jobs:
             pack/*.dmg.blockmap
             pack/latest-mac.yml
           if-no-files-found: error
+          retention-days: 1
 
   package-windows-x64:
     name: Package Windows x64
@@ -167,6 +168,7 @@ jobs:
             pack/*.exe.blockmap
             pack/latest.yml
           if-no-files-found: error
+          retention-days: 1
 
   package-linux-appimage-x64:
     name: Package Linux AppImage x64
@@ -215,6 +217,7 @@ jobs:
             pack/*.AppImage.blockmap
             pack/latest-linux.yml
           if-no-files-found: error
+          retention-days: 1
 
   publish-release:
     name: Publish GitHub Release
